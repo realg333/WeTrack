@@ -43,7 +43,7 @@ export default function IntegrationsPage({
   notify: Toast;
   onDataChange: () => void;
 }) {
-  const [tab, setTab] = useState('Visão geral');
+  const [tab, setTab] = useState('Meta Ads');
   const [data, setData] = useState<Integrations | null>(null);
   const [error, setError] = useState('');
   const [modal, setModal] = useState<
@@ -92,6 +92,7 @@ export default function IntegrationsPage({
     term: '',
   });
   const generation = useRef(0);
+  const oauthGeneration = useRef(0);
   const load = useCallback(async () => {
     const v = ++generation.current;
     try {
@@ -105,10 +106,15 @@ export default function IntegrationsPage({
     }
   }, [project]);
   useEffect(() => {
+    oauthGeneration.current++;
+    setBusy(false);
     setData(null);
     setOauthLink(null);
     setModal(null);
     void load();
+    return () => {
+      oauthGeneration.current++;
+    };
   }, [load]);
   const copy = async (value: string) => {
     try {
@@ -116,6 +122,31 @@ export default function IntegrationsPage({
       notify('Copiado para a área de transferência.');
     } catch {
       notify('Não foi possível copiar. Selecione o texto e copie manualmente.', true);
+    }
+  };
+  const closeOAuth = () => {
+    oauthGeneration.current++;
+    setBusy(false);
+    setModal(null);
+    setOauthLink(null);
+  };
+  const prepareOAuth = async (copyLink = false) => {
+    const request = ++oauthGeneration.current;
+    setModal('oauth');
+    setOauthLink(null);
+    if (!data?.meta.oauth.configured) return;
+    setBusy(true);
+    try {
+      const link = await mutate<{ url: string; expires_at: string }>('/meta/oauth/links', 'POST', {
+        project_id: project,
+      });
+      if (request !== oauthGeneration.current) return;
+      setOauthLink(link);
+      if (copyLink) await copy(link.url);
+    } catch (e) {
+      if (request === oauthGeneration.current) notify((e as Error).message, true);
+    } finally {
+      if (request === oauthGeneration.current) setBusy(false);
     }
   };
   const snippet = (pixel: Pixel) => {
@@ -245,10 +276,14 @@ export default function IntegrationsPage({
                 text: 'Conecte suas contas de anúncios para centralizar campanhas e investimento.',
                 mark: '∞',
                 className: 'meta',
-                status: data.meta.connected ? 'Conectada' : 'Disponível com token',
+                status: data.meta.connected
+                  ? 'Conectada'
+                  : data.meta.oauth.configured
+                    ? 'Pronta para conectar'
+                    : 'Configuração pendente',
                 tone: data.meta.connected ? 'green' : 'neutral',
-                action: data.meta.connected ? 'Gerenciar contas' : 'Configurar conexão',
-                click: () => (data.meta.connected ? setTab('Meta Ads') : setModal('meta')),
+                action: data.meta.connected ? 'Gerenciar contas' : 'Conectar com Facebook',
+                click: () => (data.meta.connected ? setTab('Meta Ads') : void prepareOAuth()),
               },
               {
                 title: 'Pixel de rastreio',
@@ -300,7 +335,7 @@ export default function IntegrationsPage({
           </section>
           <div className="security-note">
             <ShieldCheck size={16} />
-            <span>Tokens são armazenados por hash. URLs com tokens só aparecem uma vez.</span>
+            <span>Suas conexões ficam protegidas no servidor.</span>
           </div>
         </>
       )}
@@ -317,15 +352,21 @@ export default function IntegrationsPage({
             <div className="oauth-connect-actions">
               <button
                 className="button primary"
-                onClick={() => {
-                  setOauthLink(null);
-                  setModal('oauth');
-                }}
+                disabled={busy}
+                onClick={() => void prepareOAuth()}
               >
                 <Link2 size={15} />
-                Conectar com Facebook / gerar link
+                Conectar com Facebook
               </button>
-              <button className="button secondary" onClick={() => void load()}>
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void prepareOAuth(true)}
+              >
+                <Copy size={15} />
+                Copiar link de conexão
+              </button>
+              <button className="button secondary" disabled={busy} onClick={() => void load()}>
                 Atualizar contas
               </button>
               <span className="muted">
@@ -440,8 +481,12 @@ export default function IntegrationsPage({
                   </table>
                 </div>
                 <div className="meta-connected-footer">
-                  <button className="text-button" onClick={() => setModal('meta')}>
-                    Atualizar token
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => void prepareOAuth()}
+                  >
+                    Reconectar com Facebook
                   </button>
                   <button
                     className="text-button text-red"
@@ -449,7 +494,7 @@ export default function IntegrationsPage({
                       try {
                         await mutate(`/meta/${project}`, 'DELETE');
                         await load();
-                        notify('Token Meta removido. Histórico de métricas preservado.');
+                        notify('Perfil Meta desconectado. Histórico de métricas preservado.');
                       } catch (e) {
                         notify((e as Error).message, true);
                       }
@@ -462,14 +507,8 @@ export default function IntegrationsPage({
             ) : (
               <Empty
                 icon={<Unplug size={29} />}
-                title="Conecte o próximo capítulo da sua operação"
-                text="Autorize o perfil pelo Facebook ou use um token com ads_read. Depois escolha quais contas entram nesta operação."
-                action={
-                  <button className="button primary" onClick={() => setModal('meta')}>
-                    <Plus size={16} />
-                    Conectar por token
-                  </button>
-                }
+                title="Conecte seu perfil do Facebook"
+                text="Copie o link de conexão e abra no perfil desejado do Multilogin, ou conecte neste navegador. Depois da autorização, atualize a lista e escolha as contas de anúncios desta operação."
               />
             )}
           </section>
@@ -1081,43 +1120,25 @@ export default function IntegrationsPage({
       )}
       {modal === 'oauth' && (
         <Modal
-          title="Conectar com Facebook"
+          title="Conectar Meta Ads"
           subtitle="Abra no Multilogin e autorize o perfil que administra suas contas."
-          onClose={() => {
-            setModal(null);
-            setOauthLink(null);
-          }}
+          onClose={closeOAuth}
         >
           <div className="meta-modal-logo">∞</div>
           {data.meta.oauth.configured ? (
             <>
               <p className="modal-description">
-                Gere um link de uso único, válido por 15 minutos. O Facebook exibirá o nome do
-                aplicativo configurado. Conclua a autorização no mesmo navegador em que abriu o
-                link.
+                Copie o link para abrir no Multilogin ou continue com o Facebook neste navegador. O
+                link vale por 15 minutos e permite uma autorização.
               </p>
               {!oauthLink ? (
                 <button
                   className="button primary full-width"
                   disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      setOauthLink(
-                        await mutate<{ url: string; expires_at: string }>(
-                          '/meta/oauth/links',
-                          'POST',
-                          { project_id: project },
-                        ),
-                      );
-                    } catch (e) {
-                      notify((e as Error).message, true);
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
+                  onClick={() => void prepareOAuth()}
                 >
-                  {busy ? <Spinner /> : <Link2 size={16} />}Gerar link de conexão
+                  {busy ? <Spinner /> : <Link2 size={16} />}
+                  {busy ? 'Preparando link de conexão…' : 'Tentar gerar link novamente'}
                 </button>
               ) : (
                 <>
@@ -1140,14 +1161,14 @@ export default function IntegrationsPage({
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Abrir Facebook <ArrowUpRight size={15} />
+                      Conectar com Facebook <ArrowUpRight size={15} />
                     </a>
                   </div>
                 </>
               )}
               <p className="panel-footnote">
                 Depois de autorizar, volte à WeTrack, atualize a lista e selecione as contas que
-                deseja sincronizar. A conexão não cria uma sessão administrativa no Multilogin.
+                deseja sincronizar.
               </p>
             </>
           ) : (
@@ -1183,23 +1204,28 @@ export default function IntegrationsPage({
               </p>
             </>
           )}
+          <details className="meta-manual-option">
+            <summary>Conexão manual · avançado</summary>
+            <p>Use um token com acesso às contas de anúncios. A CAPI é configurada no pixel.</p>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => {
+                closeOAuth();
+                setModal('meta');
+              }}
+            >
+              Informar token de anúncios
+            </button>
+          </details>
           <div className="modal-actions">
             <button
               className="button secondary"
-              onClick={() => {
-                setModal('meta');
-                setOauthLink(null);
-              }}
-            >
-              Usar token manual
-            </button>
-            <button
-              className="button secondary"
+              disabled={busy}
               onClick={async () => {
                 await load();
                 onDataChange();
-                setModal(null);
-                setOauthLink(null);
+                closeOAuth();
               }}
             >
               Concluí, atualizar contas
@@ -1209,8 +1235,8 @@ export default function IntegrationsPage({
       )}
       {modal === 'meta' && (
         <Modal
-          title="Conectar Meta Ads"
-          subtitle="Importe os resultados das suas contas com um token oficial."
+          title="Conectar Meta Ads por token"
+          subtitle="Alternativa avançada para autorizar suas contas de anúncios."
           onClose={() => setModal(null)}
         >
           <div className="meta-modal-logo">∞</div>
@@ -1238,7 +1264,7 @@ export default function IntegrationsPage({
             }}
           >
             <label>
-              Token de acesso Meta
+              Token de acesso às contas de anúncios
               <input
                 name="access_token"
                 type="password"

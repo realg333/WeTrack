@@ -174,7 +174,12 @@ test('mobile menu, dashboard and overflow', async ({ page }) => {
   ).toBeTruthy();
   await page.getByRole('button', { name: 'Abrir navegação' }).click();
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Menos abas. Mais clareza.' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Contas de anúncios', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Copiar link de conexão', exact: true }),
+  ).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();

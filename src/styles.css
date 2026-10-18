@@ -5308,6 +5308,25 @@ form > label > input {
   margin-left: auto;
   font-size: 11px;
 }
+.meta-manual-option {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.meta-manual-option summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.meta-manual-option summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+}
+.meta-manual-option p {
+  margin: 12px 0;
+  line-height: 1.7;
+}
 .account-selection {
   display: flex;
   gap: 12px;
