@@ -1,5 +1,6 @@
 import { waitUntil } from '@vercel/functions';
 import { cloudApp } from '../server/cloud.mjs';
+import { afterResponse } from '../server/background.mjs';
 
 export default async function handler(req, res) {
   try {
@@ -8,17 +9,7 @@ export default async function handler(req, res) {
       req.method === 'POST' &&
       (/^\/api\/webhooks\//.test(req.url) || /^\/api\/capi\/[^/]+\/retry/.test(req.url))
     ) {
-      waitUntil(
-        new Promise((resolve) => {
-          res.once('finish', () =>
-            app.locals.meta
-              .drain()
-              .catch(() => {})
-              .finally(resolve),
-          );
-          res.once('close', resolve);
-        }),
-      );
+      waitUntil(afterResponse(res, () => app.locals.meta.drain()));
     }
     app(req, res);
   } catch (error) {

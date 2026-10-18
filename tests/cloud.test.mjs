@@ -7,6 +7,8 @@ import { createDatabase } from '../server/db.mjs';
 import { createApp } from '../server/app.mjs';
 import { cloudCredentials, initializeCloud } from '../server/cloud.mjs';
 import { encrypt } from '../server/meta.mjs';
+import { EventEmitter } from 'node:events';
+import { afterResponse } from '../server/background.mjs';
 
 test('cloud bootstrap is atomic and idempotent, carries encrypted configuration and excludes the demo', async () => {
   const client = createClient({ url: 'file::memory:' }),
@@ -64,6 +66,36 @@ test('Turso synchronous driver preserves webhook transactions and sessions survi
     assert.equal(session.authenticated, true);
     const saved = db.prepare('SELECT id_hash FROM admin_sessions').get();
     assert.ok(!cookie.includes(saved.id_hash));
+    const created = await fetch(url(a) + '/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        project_id: 'workspace',
+        name: 'Pedidos teste nuvem',
+        platform: 'API personalizada',
+      }),
+    });
+    assert.equal(created.status, 201);
+    const token = await created.json();
+    const order = {
+      order_id: 'CLOUD-ORDER-1',
+      status: 'approved',
+      amount: 12.3,
+      product: 'Teste da transação',
+    };
+    const deliver = () =>
+      fetch(url(a) + '/webhooks/' + token.token, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      });
+    assert.equal((await deliver()).status, 200);
+    assert.equal((await (await deliver()).json()).duplicate, true);
+    const report = await (
+      await fetch(url(b) + '/dashboard?project=workspace', { headers: { Cookie: cookie } })
+    ).json();
+    assert.equal(report.metrics.revenue, 12.3);
+    assert.equal(report.metrics.sales, 1);
     await fetch(url(b) + '/logout', { method: 'POST', headers: { Cookie: cookie } });
     assert.equal(
       (await (await fetch(url(a) + '/session', { headers: { Cookie: cookie } })).json())
@@ -95,4 +127,37 @@ test('cloud credential selection uses injected secrets and rejects unavailable r
     () => cloudCredentials({ TURSO_DATABASE_URL: '[SENSITIVE]', TURSO_AUTH_TOKEN: '[SENSITIVE]' }),
     /ENV_MISSING/,
   );
+});
+
+test('serverless background work survives normal response close and skips aborted responses', async () => {
+  const response = new EventEmitter();
+  let release,
+    done = false;
+  const result = afterResponse(
+    response,
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  ).then(() => {
+    done = true;
+  });
+  response.emit('finish');
+  await Promise.resolve();
+  response.emit('close');
+  await Promise.resolve();
+  assert.equal(done, false);
+  release();
+  await result;
+  assert.equal(done, true);
+  const aborted = new EventEmitter();
+  let called = false;
+  const canceled = afterResponse(aborted, () => {
+    called = true;
+  });
+  aborted.emit('close');
+  await canceled;
+  aborted.emit('finish');
+  await Promise.resolve();
+  assert.equal(called, false);
 });

@@ -1,6 +1,18 @@
 # WeTrack
 
-Aplicação de rastreamento e análise de campanhas, com interface em português, identidade própria e operação local persistente. Referências de produto: LowTrack e UTMify.
+Aplicação de rastreamento e análise de campanhas, com interface em português, identidade própria, SQLite local e publicação na Vercel com Turso persistente. Referências de produto: LowTrack e UTMify.
+
+## Publicação na Vercel
+
+Painel: **https://wetrack-wetrack.vercel.app**. Projeto `wetrack` na equipe `Wetrack`, conectado a `realg333/WeTrack` (branch `main`).
+
+O ambiente publicado contém apenas **Descomplica Libras**. As sessões, visitas e vendas ficam no Turso Starter; arquivos temporários de Functions não são usados como banco. A senha gerada está no arquivo local privado `data/production-access.txt`, ignorado pelo Git e pelo envio à Vercel. A configuração inicial foi enviada criptografada em `WETRACK_BOOTSTRAP`; o marcador no banco impede reaplicar essa cópia sobre dados novos. O banco local e o banco publicado passam a ser independentes.
+
+`api/index.mjs` atende `/api/*` e `/pixel.js`. O painel exige a senha própria da WeTrack; o domínio principal permite acesso ao pixel e aos webhooks. URLs individuais de deployments e previews continuam protegidas pela Vercel. As variáveis `ADMIN_PASSWORD`, `SECRETS_KEY`, `CRON_SECRET` e `WETRACK_BOOTSTRAP` existem somente em production. Previews precisam de banco e credenciais separados para usar a API.
+
+Compras recebidas por webhook iniciam o envio CAPI com `waitUntil` depois da resposta HTTP. Há também uma verificação diária da fila às 06:00 UTC (03:00 de Brasília), compatível com o plano Hobby. Reenvios não executados por falta de tráfego aguardam a próxima verificação; não existe um processo contínuo a cada 30 segundos na Vercel.
+
+A URL HTTPS está pronta. A autorização por link do Facebook ainda exige `META_APP_ID`, `META_APP_SECRET` e a configuração do aplicativo, com retorno `https://wetrack-wetrack.vercel.app/api/meta/oauth/callback`.
 
 ## Executar
 
@@ -29,7 +41,7 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 - Histórico de envios CAPI, confirmação de recebimento pela Meta e reenvio de falhas.
 - Alertas de indicadores no painel, notificações internas, preferências, temas e layout responsivo.
 
-**Limites:** MVP para um administrador, não um SaaS multiusuário pronto para comercialização. OAuth com Facebook, adaptadores nativos Cakto/Hotmart/Kiwify, ações de escrita na Meta, push, cobrança e aplicativo mobile ainda não estão implementados. Use a API personalizada com o formato abaixo; payloads nativos de outras plataformas precisam de adaptação.
+**Limites:** MVP para um administrador. OAuth com Facebook está implementado e aguarda configuração do aplicativo Meta. Adaptadores nativos Cakto/Hotmart/Kiwify, ações de escrita na Meta, push, cobrança e aplicativo mobile ainda não estão implementados. Use a API personalizada com o formato abaixo; payloads nativos de outras plataformas precisam de adaptação.
 
 ## Configuração
 
@@ -43,7 +55,7 @@ DATABASE_PATH=./data/wetrack.sqlite
 ADMIN_PASSWORD=sua-senha-forte
 ```
 
-`HOST=0.0.0.0` só é aceito com senha. Sessões ficam na memória e expiram em 24 horas; reiniciar exige login. O login limita tentativas. Não há cadastro público ou recuperação de senha.
+`HOST=0.0.0.0` só é aceito com senha. Sessões ficam no banco por hash, expiram em 24 horas e podem ser usadas entre instâncias. O logout revoga a sessão. O login limita tentativas. Não há cadastro público ou recuperação de senha.
 
 O banco fica em `data/wetrack.sqlite`. Tokens de webhook são guardados por hash. Credenciais Meta/CAPI usam AES-256-GCM com `data/secret.key`; faça backup da chave junto com o banco. Opcionalmente forneça `SECRETS_KEY` com 64 caracteres hexadecimais. Não troque a chave sem migrar credenciais existentes.
 

@@ -4,6 +4,7 @@ test('dashboard, filters, navigation, details, theme and export', async ({ page 
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
+  await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('demo');
   await expect(page.getByRole('heading', { name: 'Sua operação em foco.' })).toBeVisible();
   await expect(page.locator('.metric-value').first()).not.toHaveText('R$ 0,00');
   await expect(page.locator('.revenue-chart')).toBeVisible();

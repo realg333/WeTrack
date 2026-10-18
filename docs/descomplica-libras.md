@@ -1,19 +1,19 @@
-# Descomplica Libras — configuração local
+# Descomplica Libras — configuração e publicação
 
 Operação preparada em 17/10/2026. Credencial salva criptografada no banco local, sem token em arquivos versionados.
 
 Em 18/10/2026, o painel foi ajustado para mostrar o ID Meta e identificar o modo de teste. A verificação abaixo se refere ao evento enviado em 17/10; não foi repetido um envio de produção.
 
-| Item                      | Configuração                          |
-| ------------------------- | ------------------------------------- |
-| Operação                  | Descomplica Libras (`workspace`)      |
-| Domínio informado         | `descomplicalibras.shop`              |
-| Origem final observada    | `https://www.descomplicalibras.shop`  |
-| Pixel Meta                | `4497992933816815`                    |
-| Pixel WeTrack             | `px_libras_4497992933816815`          |
-| Código de teste           | `TEST74475`                           |
-| Versão Graph API validada | `v26.0`                               |
-| Hospedagem WeTrack        | Somente local, por escolha do usuário |
+| Item                      | Configuração                         |
+| ------------------------- | ------------------------------------ |
+| Operação                  | Descomplica Libras (`workspace`)     |
+| Domínio informado         | `descomplicalibras.shop`             |
+| Origem final observada    | `https://www.descomplicalibras.shop` |
+| Pixel Meta                | `4497992933816815`                   |
+| Pixel WeTrack             | `px_libras_4497992933816815`         |
+| Código de teste           | `TEST74475`                          |
+| Versão Graph API validada | `v26.0`                              |
+| Hospedagem WeTrack        | https://wetrack-wetrack.vercel.app   |
 
 ## Validação realizada
 
@@ -27,7 +27,7 @@ O site publicado já referencia o mesmo ID Meta. O script WeTrack não reinicial
 
 Nenhuma alteração foi feita no site publicado. Não instale no site o código que aponta para `127.0.0.1`: ele só funciona neste computador.
 
-1. Publique a WeTrack em um endereço HTTPS público e configure `PUBLIC_URL` com esse endereço.
+1. A WeTrack já está publicada em `https://wetrack-wetrack.vercel.app`, com `PUBLIC_URL` nesse endereço.
 2. No site, adicione o código gerado em **Integrações → Pixel de rastreio**. A origem autorizada precisa continuar sendo `https://www.descomplicalibras.shop`.
 3. Abra uma URL com UTMs e confira os eventos na WeTrack. A instalação deve respeitar o consentimento aplicável no site.
 
@@ -36,7 +36,7 @@ Modelo de instalação, com endereço público a substituir:
 ```html
 <script
   async
-  src="https://SEU-ENDERECO-PUBLICO-WETRACK/pixel.js"
+  src="https://wetrack-wetrack.vercel.app/pixel.js"
   data-pixel="px_libras_4497992933816815"
   data-checkout-origin="https://pay.cakto.com.br"
 ></script>
@@ -62,6 +62,10 @@ Com o receptor público e o adaptador prontos, associe a conexão de vendas ao p
 
 A interface agora tem campanhas, conjuntos e anúncios navegáveis, funil Meta/Site, vendas por horário e trajetos por visitante. A demonstração inclui exemplos separados da operação real. Contas conectadas começam desativadas; selecione somente as contas da Descomplica Libras antes de sincronizar. Desativar uma conta a retira dos relatórios e preserva seu histórico.
 
-O OAuth por link está preparado, aguardando hospedagem HTTPS e configuração do aplicativo Meta (`META_APP_ID`, `META_APP_SECRET` e, se aplicável, `META_LOGIN_CONFIG_ID`). O nome exibido pelo Facebook vem desse aplicativo. Não foi criado aplicativo, publicado servidor nem iniciada autorização real nesta atualização.
+O OAuth por link está preparado com HTTPS público, aguardando configuração do aplicativo Meta (`META_APP_ID`, `META_APP_SECRET` e, se aplicável, `META_LOGIN_CONFIG_ID`). O nome exibido pelo Facebook vem desse aplicativo. Não foi criado aplicativo nem iniciada autorização real nesta atualização.
+
+## Vercel — 18/10/2026
+
+Projeto `wetrack` na equipe `Wetrack`, GitHub `realg333/WeTrack` conectado, Turso Starter persistente em `iad1`. A operação e a configuração CAPI foram copiadas criptografadas; `TEST74475` permanece ativo. O ambiente publicado não contém dados de demonstração. Login, logout, API e entrega do script foram verificados no endereço público. A senha de acesso foi salva somente no arquivo privado local `data/production-access.txt`.
 
 Os trajetos começarão após instalar o script atualizado no site público. Seções podem ser identificadas com `data-wetrack-section="precos"`. Cliques para `pay.cakto.com.br` registram intenção de checkout; o interior do checkout não fica visível automaticamente. Para relacionar o pedido ao trajeto, o adaptador de vendas precisa enviar `visitor_id`; para receita por anúncio/conjunto, envie `ad_id`/`adset_id` ou `utm_content`/`utm_term` com os IDs respectivos. Esses vínculos não são presumidos.
