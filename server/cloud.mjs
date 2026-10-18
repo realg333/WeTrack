@@ -114,7 +114,35 @@ export function cloudApp() {
         if (!hostname) throw new Error('WETRACK_PUBLIC_URL_MISSING');
         process.env.PUBLIC_URL = `https://${hostname}`;
       }
-      return createApp(db, { secretKey: key, serverless: true });
+      return createApp(db, {
+        secretKey: key,
+        serverless: true,
+        storageCheck: async () => {
+          const check = createClient(credentials);
+          try {
+            const sql =
+              'SELECT integration_id,provider FROM provider_connections ORDER BY provider';
+            const native = db.prepare(sql).all(),
+              remote = (await check.execute(sql)).rows;
+            return {
+              transaction_open: db.inTransaction,
+              native_connections: native.length,
+              remote_connections: remote.length,
+              consistent:
+                native.length === remote.length &&
+                native.every((row) =>
+                  remote.some(
+                    (other) =>
+                      other.integration_id === row.integration_id &&
+                      other.provider === row.provider,
+                  ),
+                ),
+            };
+          } finally {
+            check.close();
+          }
+        },
+      });
     })().catch((error) => {
       application = undefined;
       throw error;

@@ -110,6 +110,17 @@ export function createApp(db, options = {}) {
     next();
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+  if (options.storageCheck)
+    app.get('/api/internal/storage-check', async (req, res) => {
+      const sessionId = req.headers.cookie
+        ?.split(';')
+        .map((s) => s.trim())
+        .find((s) => s.startsWith('wt_session='))
+        ?.slice(11);
+      if (!password || !sessionValid(sessionId))
+        return res.status(401).json({ error: 'Entre para consultar o armazenamento.' });
+      res.json(await options.storageCheck());
+    });
   app.get('/api/internal/capi-drain', async (req, res) => {
     const expected = process.env.CRON_SECRET;
     if (

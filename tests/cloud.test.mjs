@@ -115,6 +115,38 @@ test('Turso synchronous driver preserves webhook transactions and sessions survi
     db.close();
   }
 });
+test('storage diagnostics require an explicit authenticated session before querying the remote database', async () => {
+  const db = createDatabase(':memory:', { seedDemo: false });
+  let calls = 0;
+  const server = createApp(db, {
+    password: 'private-diagnostic-password',
+    storageCheck: async () => {
+      calls++;
+      return { native_connections: 0, remote_connections: 0, consistent: true };
+    },
+  }).listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  try {
+    assert.equal((await fetch(base + '/internal/storage-check')).status, 401);
+    assert.equal(calls, 0);
+    const login = await fetch(base + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'private-diagnostic-password' }),
+    });
+    const response = await fetch(base + '/internal/storage-check', {
+      headers: { Cookie: login.headers.get('set-cookie').split(';')[0] },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).consistent, true);
+    assert.equal(calls, 1);
+  } finally {
+    await new Promise((r) => server.close(r));
+    db.close();
+  }
+});
+
 test('cloud credential selection uses injected secrets and rejects unavailable redacted values', () => {
   assert.deepEqual(
     cloudCredentials({
