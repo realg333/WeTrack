@@ -32,7 +32,7 @@ export const cloudTables = [
   'checkout_refs',
 ];
 export function cloudCredentials(env = process.env) {
-  for (const prefix of ['DATABASE_', '']) {
+  for (const prefix of ['', 'DATABASE_']) {
     const url = env[`${prefix}TURSO_DATABASE_URL`],
       authToken = env[`${prefix}TURSO_AUTH_TOKEN`];
     if (url && /^(libsql|https):\/\//.test(url) && authToken && authToken !== '[SENSITIVE]')

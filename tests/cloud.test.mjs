@@ -150,6 +150,15 @@ test('storage diagnostics require an explicit authenticated session before query
 test('cloud credential selection uses injected secrets and rejects unavailable redacted values', () => {
   assert.deepEqual(
     cloudCredentials({
+      TURSO_DATABASE_URL: 'libsql://primary.turso.io',
+      TURSO_AUTH_TOKEN: 'primary-token',
+      DATABASE_TURSO_DATABASE_URL: 'libsql://secondary.turso.io',
+      DATABASE_TURSO_AUTH_TOKEN: 'secondary-token',
+    }),
+    { url: 'libsql://primary.turso.io', authToken: 'primary-token' },
+  );
+  assert.deepEqual(
+    cloudCredentials({
       DATABASE_TURSO_DATABASE_URL: 'libsql://example.turso.io',
       DATABASE_TURSO_AUTH_TOKEN: 'mock-token',
     }),
