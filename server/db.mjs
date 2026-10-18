@@ -38,6 +38,12 @@ export function createDatabase(
     CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS admin_sessions (id_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS login_attempts (ip_hash TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS provider_connections (integration_id TEXT PRIMARY KEY REFERENCES integrations(id), provider TEXT NOT NULL, url_cipher TEXT NOT NULL, secret_cipher TEXT, test_mode INTEGER NOT NULL DEFAULT 1, purchase_owner TEXT NOT NULL DEFAULT 'checkout');
+    CREATE TABLE IF NOT EXISTS webhook_receipts (id TEXT PRIMARY KEY, integration_id TEXT NOT NULL, event_key TEXT NOT NULL, event_name TEXT NOT NULL, status TEXT NOT NULL, test_mode INTEGER NOT NULL, payload_cipher TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0, received_at TEXT NOT NULL, processed_at TEXT, last_error TEXT, UNIQUE(integration_id,event_key));
+    CREATE TABLE IF NOT EXISTS provider_orders (project_id TEXT NOT NULL, provider TEXT NOT NULL, external_id TEXT NOT NULL, sale_id TEXT NOT NULL REFERENCES sales(id), updated_at INTEGER NOT NULL, PRIMARY KEY(project_id,provider,external_id));
+    CREATE TABLE IF NOT EXISTS checkout_refs (project_id TEXT NOT NULL, code TEXT NOT NULL, payload TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY(project_id,code));
+    CREATE INDEX IF NOT EXISTS webhook_receipts_queue ON webhook_receipts(status,next_attempt,locked_until);
+    CREATE INDEX IF NOT EXISTS checkout_refs_expiry ON checkout_refs(expires_at);
     CREATE INDEX IF NOT EXISTS events_visitor ON events(project_id,visitor_id,created_at);
     CREATE INDEX IF NOT EXISTS attribution_visitor ON sale_attribution(visitor_id);
     CREATE INDEX IF NOT EXISTS sales_project_day ON sales(project_id,day);

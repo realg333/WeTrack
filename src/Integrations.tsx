@@ -20,7 +20,9 @@ import {
 } from 'lucide-react';
 import { api, dateTime, mutate, number } from './lib';
 import { Badge, Empty, Modal, SearchBox, Spinner, Toggle } from './components';
-import type { Integrations, Pixel, Toast } from './types';
+import type { Integrations, Pixel, Toast, PlatformConnectionData } from './types';
+import PlatformConnection from './PlatformConnection';
+import { platformGuides, type Provider } from './platform-guides';
 
 const tabs = ['Visão geral', 'Meta Ads', 'Pixel de rastreio', 'UTMs', 'Webhook API'];
 const sample = {
@@ -77,6 +79,11 @@ export default function IntegrationsPage({
     }[]
   >([]);
   const [platformQuery, setPlatformQuery] = useState('');
+  const [native, setNative] = useState<{
+    provider: Provider;
+    connection?: PlatformConnectionData;
+    tab?: string;
+  } | null>(null);
   const [newToken, setNewToken] = useState<{ token: string; url: string } | null>(null);
   const [deletion, setDeletion] = useState<{
     id: string;
@@ -111,6 +118,7 @@ export default function IntegrationsPage({
     setData(null);
     setOauthLink(null);
     setModal(null);
+    setNative(null);
     void load();
     return () => {
       oauthGeneration.current++;
@@ -802,8 +810,8 @@ export default function IntegrationsPage({
             <div>
               <h2>Suas vendas, direto na WeTrack.</h2>
               <p>
-                Cada conexão possui um token exclusivo. Envie pedidos no formato da API e acompanhe
-                as conversões.
+                Conecte Cakto, Hotmart e Blackcat com seus formatos nativos ou use a API
+                personalizada. Cada conexão inclui instruções e validação de entrega.
               </p>
             </div>
             <button className="button secondary" onClick={() => setModal('docs')}>
@@ -811,20 +819,99 @@ export default function IntegrationsPage({
               Documentação
             </button>
           </section>
-          <section className="panel">
+          <section className="panel native-platforms-panel">
             <div className="panel-heading">
               <div>
-                <h2>
-                  Conexões de vendas<span className="count-label">{data.tokens.length}</span>
-                </h2>
-                <p>Tokens para receber pedidos e atualizações de pagamento</p>
+                <h2>Plataformas da operação</h2>
+                <p>Configuração, tutorial e histórico de webhooks</p>
               </div>
               <button className="button primary" onClick={() => setModal('platforms')}>
                 <Plus size={15} />
                 Conectar plataforma
               </button>
             </div>
-            {data.tokens.length ? (
+            <div className="native-platform-grid">
+              {(data.providers || []).map((c) => (
+                <article className="native-platform-card" key={c.id}>
+                  <div>
+                    <strong>{c.name}</strong>
+                    <small>{platformGuides[c.provider].name}</small>
+                  </div>
+                  <Badge tone={!c.configured ? 'amber' : c.test_mode ? 'blue' : 'green'}>
+                    {!c.configured
+                      ? 'Falta credencial'
+                      : c.test_mode
+                        ? 'Modo de teste'
+                        : 'Vendas reais liberadas'}
+                  </Badge>
+                  {c.last_event && (
+                    <p className="panel-footnote">
+                      Última entrega: {dateTime(c.last_event.received_at)}
+                      {c.last_event.last_error ? ` · ${c.last_event.last_error}` : ''}
+                    </p>
+                  )}
+                  <div className="native-platform-actions">
+                    <button
+                      className="button secondary"
+                      onClick={() => setNative({ provider: c.provider, connection: c })}
+                    >
+                      Configurar
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        setNative({ provider: c.provider, connection: c, tab: 'Tutorial' })
+                      }
+                    >
+                      Tutorial
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        setNative({ provider: c.provider, connection: c, tab: 'Entregas' })
+                      }
+                    >
+                      Entregas
+                    </button>
+                    <button
+                      className="text-button text-red"
+                      onClick={() => {
+                        setDeletion({ id: c.id, kind: 'tokens', name: c.name });
+                        setModal('delete');
+                      }}
+                    >
+                      Revogar
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            {!(data.providers || []).length && (
+              <p className="panel-footnote">
+                Escolha Conectar plataforma para gerar a URL e abrir o tutorial.
+              </p>
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <h2>
+                  API personalizada
+                  <span className="count-label">
+                    {
+                      data.tokens.filter((t) => !(data.providers || []).some((c) => c.id === t.id))
+                        .length
+                    }
+                  </span>
+                </h2>
+                <p>Tokens para receber pedidos e atualizações de pagamento</p>
+              </div>
+              <button className="button secondary" onClick={openToken}>
+                <Plus size={15} />
+                Criar conexão API
+              </button>
+            </div>
+            {data.tokens.some((t) => !(data.providers || []).some((c) => c.id === t.id)) ? (
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
@@ -839,34 +926,36 @@ export default function IntegrationsPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {data.tokens.map((t) => (
-                      <tr key={t.id}>
-                        <td>
-                          <strong>{t.name}</strong>
-                        </td>
-                        <td>{t.platform}</td>
-                        <td>
-                          <code>wt_••••{t.token_hint}</code>
-                        </td>
-                        <td>
-                          <Badge>Ativa</Badge>
-                        </td>
-                        <td>{t.last_used ? dateTime(t.last_used) : 'Aguardando pedido'}</td>
-                        <td>{dateTime(t.created_at)}</td>
-                        <td>
-                          <button
-                            className="icon-button text-red"
-                            aria-label={`Revogar ${t.name}`}
-                            onClick={() => {
-                              setDeletion({ id: t.id, kind: 'tokens', name: t.name });
-                              setModal('delete');
-                            }}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {data.tokens
+                      .filter((t) => !(data.providers || []).some((c) => c.id === t.id))
+                      .map((t) => (
+                        <tr key={t.id}>
+                          <td>
+                            <strong>{t.name}</strong>
+                          </td>
+                          <td>{t.platform}</td>
+                          <td>
+                            <code>wt_••••{t.token_hint}</code>
+                          </td>
+                          <td>
+                            <Badge>Ativa</Badge>
+                          </td>
+                          <td>{t.last_used ? dateTime(t.last_used) : 'Aguardando pedido'}</td>
+                          <td>{dateTime(t.created_at)}</td>
+                          <td>
+                            <button
+                              className="icon-button text-red"
+                              aria-label={`Revogar ${t.name}`}
+                              onClick={() => {
+                                setDeletion({ id: t.id, kind: 'tokens', name: t.name });
+                                setModal('delete');
+                              }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -984,28 +1073,19 @@ export default function IntegrationsPage({
             placeholder="Buscar plataforma…"
           />
           <div className="platform-grid">
-            {[
-              'API personalizada',
-              'Cakto',
-              'Hotmart',
-              'Kiwify',
-              'Kirvano',
-              'Perfect Pay',
-              'Braip',
-              'Eduzz',
-              'Cartpanda',
-            ]
+            {['API personalizada', 'Cakto', 'Hotmart', 'Blackcat']
               .filter((p) => p.toLowerCase().includes(platformQuery.toLowerCase()))
               .map((p, i) => (
                 <button
-                  className={`platform-card ${p === 'API personalizada' ? 'available' : ''}`}
+                  className="platform-card available"
                   key={p}
                   onClick={() =>
                     p === 'API personalizada'
                       ? openToken()
-                      : notify(
-                          `O adaptador nativo ${p} está em preparação. Use a API personalizada com seu sistema de integração.`,
-                        )
+                      : (() => {
+                          setModal(null);
+                          setNative({ provider: p.toLowerCase() as Provider });
+                        })()
                   }
                 >
                   <span className={`platform-letter platform-color-${i % 4}`}>
@@ -1013,19 +1093,37 @@ export default function IntegrationsPage({
                   </span>
                   <div>
                     <strong>{p}</strong>
-                    <small>
-                      {p === 'API personalizada' ? 'Conectar agora' : 'Adaptador em preparação'}
-                    </small>
+                    <small>Conectar agora</small>
                   </div>
-                  {p === 'API personalizada' && <ArrowRight size={15} />}
+                  <ArrowRight size={15} />
                 </button>
               ))}
           </div>
           <div className="inline-notice">
-            <CircleHelp size={16} />A API personalizada já recebe pedidos no formato WeTrack. Os
-            conectores nativos exigem adaptadores específicos para cada plataforma.
+            <CircleHelp size={16} />
+            Os conectores recebem o formato da própria plataforma. Comece em modo de teste e escolha
+            quem envia Purchase para evitar compras duplicadas na Meta.
           </div>
         </Modal>
+      )}
+      {native && (
+        <PlatformConnection
+          key={`${project}:${native.connection?.id || native.provider}`}
+          project={project}
+          provider={native.provider}
+          initial={native.connection}
+          initialTab={native.tab}
+          pixels={data.pixels}
+          notify={notify}
+          onChanged={() => {
+            void load();
+            onDataChange();
+          }}
+          onClose={() => {
+            setNative(null);
+            setTab('Webhook API');
+          }}
+        />
       )}
       {modal === 'token' && (
         <Modal

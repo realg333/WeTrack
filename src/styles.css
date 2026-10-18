@@ -5345,6 +5345,111 @@ form > label > input {
   gap: 10px;
   line-height: 1.6;
 }
+.native-platforms-panel {
+  padding-bottom: 20px;
+}
+.native-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  padding: 0 24px;
+}
+.native-platform-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+}
+.native-platform-card strong {
+  display: block;
+}
+.native-platform-card small {
+  display: block;
+  margin: 5px 0 12px;
+  color: var(--muted);
+}
+.native-platform-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 16px;
+}
+.platform-webhook-url {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin: 20px 0;
+}
+.platform-webhook-url label {
+  flex: 1;
+  min-width: 0;
+}
+.platform-webhook-url input {
+  width: 100%;
+  margin-top: 8px;
+  font-family: var(--font-mono, monospace);
+}
+.platform-config-form {
+  display: grid;
+  gap: 17px;
+}
+.platform-config-form .platform-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-weight: normal;
+}
+.platform-config-form .platform-check input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin-top: 2px;
+}
+.platform-tutorial {
+  font-size: 14px;
+  line-height: 1.75;
+  padding-top: 20px;
+}
+.platform-tutorial ol {
+  padding-left: 24px;
+}
+.platform-tutorial li {
+  margin: 12px 0;
+}
+.platform-tutorial h3 {
+  margin: 24px 0 8px;
+}
+.platform-tutorial a {
+  color: var(--blue);
+}
+.platform-deliveries article {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.platform-deliveries article > div {
+  flex: 1;
+  min-width: 180px;
+}
+.platform-deliveries small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.platform-deliveries p {
+  margin: 7px 0 0;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .platform-webhook-url {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 .meta-edit-confirm input {
   width: auto;
   margin-top: 4px;

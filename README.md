@@ -38,11 +38,12 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 - Edição de nome e status de campanhas, conjuntos e anúncios na Meta, e ajuste de orçamento diário ou total no nível que já controla o orçamento, com confirmação explícita da conta e do resultado.
 - Pixel com PageView, eventos manuais, autorização por domínio, identificador de visitante e preservação/propagação de UTMs por sete dias.
 - API de vendas com tokens exclusivos, atualização de status, deduplicação e recuperação de atribuição pelo visitante.
+- Webhooks nativos Cakto V1/V2, Hotmart 2.0.0 e Blackcat, com tutoriais, credenciais criptografadas, teste sem receita, fila persistente, histórico de entregas e escolha do responsável por Purchase.
 - CAPI opcional: tokens criptografados, contato com SHA-256, fila persistente, ID estável e até cinco tentativas com espera progressiva.
 - Histórico de envios CAPI, confirmação de recebimento pela Meta e reenvio de falhas.
 - Alertas de indicadores no painel, notificações internas, preferências, temas e layout responsivo.
 
-**Limites:** MVP para um administrador. OAuth e gestão de anúncios exigem as permissões e o acesso aprovados pela Meta. Criação e duplicação de anúncios, edição de criativos, adaptadores nativos Cakto/Hotmart/Kiwify, push, cobrança e aplicativo mobile ainda não estão implementados. Use a API personalizada com o formato abaixo; payloads nativos de outras plataformas precisam de adaptação.
+**Limites:** MVP para um administrador. OAuth e gestão de anúncios exigem as permissões e o acesso aprovados pela Meta. Criação e duplicação de anúncios, edição de criativos, adaptadores de outras plataformas, push, cobrança e aplicativo mobile ainda não estão implementados. Cakto, Hotmart e Blackcat possuem conectores próprios; outras plataformas podem usar a API personalizada com adaptação do payload.
 
 ## Configuração
 
@@ -118,6 +119,12 @@ Links com `data-wetrack-checkout` ou com a origem indicada em `data-checkout-ori
 
 ## API de vendas
 
+Para **Cakto, Hotmart e Blackcat**, escolha o conector próprio em **Integrações → Webhook API → Conectar plataforma**. Cada um oferece abas Configuração, Tutorial e Entregas. A URL é recuperável pelo administrador; as credenciais da plataforma não são reveladas após o salvamento. Comece em teste e escolha um único responsável por Purchase. Veja [contratos, atribuição e limites dos conectores](docs/platform-webhooks.md).
+
+A Blackcat usa somente consultas GET para confirmar as transações. A Hotmart não entrega UTMs estruturadas no webhook; o script WeTrack usa uma referência curta em `xcod` para recuperar a visita quando o link passa pela página própria. Reinstalação não é necessária se o site já carrega `/pixel.js` da WeTrack, mas versões copiadas do script precisam ser atualizadas. Código de teste CAPI e modo de teste do webhook são configurações independentes.
+
+O formato abaixo se aplica à **API personalizada**.
+
 Crie uma conexão em **Integrações → Webhook API**. A URL aparece uma vez. Revogar impede novos pedidos e preserva as vendas existentes.
 
 ```http
@@ -172,6 +179,9 @@ server/domain.mjs     Fórmulas e validação
 server/meta.mjs       Marketing API, seleção de contas, criptografia e fila CAPI
 server/oauth.mjs      Autorização por link e retorno Facebook
 server/management.mjs Edição na Meta com confirmação e revisão dos valores
+server/platforms.mjs Conexões nativas, autenticação e fila de webhooks
+server/platform-adapters.mjs Contratos Cakto, Hotmart e Blackcat
+server/sales.mjs      Registro idempotente das vendas nativas
 server/reporting.mjs  Hierarquia, funil e trajetos
 server/attribution.mjs Resolução de IDs e nomes sem ambiguidade
 server/pixel.js       Script instalável

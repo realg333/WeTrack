@@ -28,12 +28,21 @@
   };
   let visitor = uuid(),
     attribution = {},
+    checkoutCode =
+      'wt' +
+      uuid()
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 22),
     session = { id: uuid(), seen: Date.now() };
   try {
     visitor = localStorage.getItem('wt_visitor') || visitor;
     localStorage.setItem('wt_visitor', visitor);
     const saved = JSON.parse(localStorage.getItem('wt_attribution') || '{}');
-    if (saved.expires > Date.now()) attribution = saved.params || {};
+    if (saved.expires > Date.now()) {
+      attribution = saved.params || {};
+      if (/^wt[a-zA-Z0-9]{16,26}$/.test(saved.checkoutCode || ''))
+        checkoutCode = saved.checkoutCode;
+    }
     const savedSession = JSON.parse(sessionStorage.getItem('wt_session') || '{}');
     if (savedSession.id && savedSession.seen > Date.now() - 1800000) session = savedSession;
   } catch {
@@ -53,10 +62,15 @@
           ? 'google'
           : 'direct';
     attribution = next;
+    checkoutCode =
+      'wt' +
+      uuid()
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 22);
     try {
       localStorage.setItem(
         'wt_attribution',
-        JSON.stringify({ params: attribution, expires: Date.now() + 7 * 86400000 }),
+        JSON.stringify({ params: attribution, checkoutCode, expires: Date.now() + 7 * 86400000 }),
       );
     } catch {}
   };
@@ -79,6 +93,13 @@
     const body = JSON.stringify({
       event_id: uuid(),
       visitor_id: visitor,
+      attribution_code: checkoutCode,
+      fbp:
+        (String(document.cookie || '').match(/(?:^|;\s*)_fbp=([^;]+)/)?.[1] || '').slice(0, 200) ||
+        undefined,
+      fbc:
+        (String(document.cookie || '').match(/(?:^|;\s*)_fbc=([^;]+)/)?.[1] || '').slice(0, 300) ||
+        undefined,
       session_id: session.id,
       event_name,
       page_url: cleanUrl(location.href),
@@ -180,6 +201,10 @@
           if (attribution[key] && !url.searchParams.has(key))
             url.searchParams.set(key, attribution[key]);
         });
+        if (url.hostname === 'pay.hotmart.com' && !url.searchParams.has('xcod'))
+          url.searchParams.set('xcod', checkoutCode);
+        if (url.hostname === 'pay.cakto.com.br' && !url.searchParams.has('sck'))
+          url.searchParams.set('sck', checkoutCode);
         link.href = url.href;
         track('Click', { target_url: url.href });
         if (

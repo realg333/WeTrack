@@ -7,9 +7,15 @@ export default async function handler(req, res) {
     const app = await cloudApp();
     if (
       req.method === 'POST' &&
-      (/^\/api\/webhooks\//.test(req.url) || /^\/api\/capi\/[^/]+\/retry/.test(req.url))
+      (/^\/api\/webhooks\//.test(req.url) ||
+        /^\/api\/platform-connections\/[^/]+\/reconcile/.test(req.url) ||
+        /^\/api\/(?:capi|platform-receipts)\/[^/]+\/retry/.test(req.url))
     ) {
-      waitUntil(afterResponse(res, () => app.locals.meta.drain()));
+      waitUntil(
+        afterResponse(res, () =>
+          res.statusCode >= 200 && res.statusCode < 300 ? app.locals.drain() : Promise.resolve(),
+        ),
+      );
     }
     app(req, res);
   } catch (error) {

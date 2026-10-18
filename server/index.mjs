@@ -9,7 +9,10 @@ const app = createApp(db, {
   secretKey: loadSecretKey(process.env.SECRETS_KEY_PATH || './data/secret.key'),
 });
 const worker = setInterval(
-  () => void app.locals.meta.drain().catch((e) => console.error('CAPI worker:', e.message)),
+  () =>
+    void app.locals
+      .drain()
+      .catch(() => console.error('Falha temporária no processamento de webhooks/CAPI.')),
   30000,
 );
 worker.unref();

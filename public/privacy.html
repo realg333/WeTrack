@@ -60,7 +60,9 @@
           <strong>Navegação nos sites integrados:</strong> identificadores pseudônimos de visitante
           e sessão, páginas e títulos, origem da visita, parâmetros UTM, horários, cliques, seções
           visualizadas e eventos de checkout. As URLs de páginas, origem e destinos são armazenadas
-          sem a consulta e o fragmento. O script não lê valores digitados em formulários.
+          sem a consulta e o fragmento. O script não lê valores digitados em formulários. Quando
+          disponíveis no site, os cookies publicitários fbp e fbc podem ser usados na atribuição e
+          no envio de conversões. Um código curto relaciona o checkout Hotmart à visita.
         </li>
         <li>
           <strong>Vendas recebidas por integração:</strong> identificador do pedido, produto, valor,
@@ -141,6 +143,14 @@
       </p>
 
       <h2>7. Por quanto tempo os dados ficam armazenados</h2>
+      <p>
+        Credenciais de webhook Cakto, Hottok Hotmart e API Key Blackcat são guardadas criptografadas
+        para validar as integrações escolhidas. Dados necessários ao processamento de entregas
+        pendentes ficam criptografados e são removidos após processamento ou em até sete dias. O
+        histórico técnico sem o conteúdo do comprador é conservado por até trinta dias. Referências
+        de atribuição entre visita e checkout expiram em trinta dias. A limpeza ocorre durante o
+        processamento da fila e pode aguardar sua próxima execução.
+      </p>
       <p>
         O histórico de campanhas, visitas e vendas não possui exclusão automática por prazo nesta
         versão. Ele é mantido enquanto necessário à operação e pode ser objeto de solicitação de

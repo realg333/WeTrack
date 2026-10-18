@@ -154,3 +154,22 @@ test('pixel works without storage and marks explicit checkout buttons', () => {
   });
   assert.equal(f.events.at(-1).event_name, 'InitiateCheckout');
 });
+
+test('Hotmart checkout gets a short attribution reference without replacing existing xcod', () => {
+  const f = fixture(),
+    code = f.events[0].attribution_code;
+  assert.match(code, /^wt[a-zA-Z0-9]{16,26}$/);
+  const link = { href: 'https://pay.hotmart.com/TEST?checkoutMode=10', hasAttribute: () => false };
+  f.listeners.click({ target: { closest: () => link } });
+  assert.equal(new URL(link.href).searchParams.get('xcod'), code);
+  assert.equal(new URL(link.href).searchParams.get('checkoutMode'), '10');
+  assert.equal(new URL(link.href).searchParams.get('utm_content'), '456');
+  link.href = 'https://pay.hotmart.com/TEST?xcod=existing-origin';
+  f.listeners.click({ target: { closest: () => link } });
+  assert.equal(new URL(link.href).searchParams.get('xcod'), 'existing-origin');
+  link.href = 'https://pay.cakto.com.br/TEST';
+  f.listeners.click({ target: { closest: () => link } });
+  assert.equal(new URL(link.href).searchParams.get('sck'), code);
+  const next = fixture({ localStorage: f.localStorage, url: 'https://shop.example.com/voltei' });
+  assert.equal(next.events[0].attribution_code, code);
+});

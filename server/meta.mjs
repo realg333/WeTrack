@@ -382,9 +382,9 @@ export function createMetaService(db, key, transport = fetch) {
     if (data.fbc) userData.fbc = data.fbc;
     const payload = {
       event_name: 'Purchase',
-      event_time: Math.floor(Date.now() / 1000),
+      event_time: Math.floor(new Date(data.approved_at || Date.now()).getTime() / 1000),
       event_id: saleId,
-      action_source: 'website',
+      action_source: data.action_source || 'website',
       event_source_url: pixel.domain,
       user_data: userData,
       custom_data: {
@@ -394,9 +394,14 @@ export function createMetaService(db, key, transport = fetch) {
         order_id: data.order_id,
       },
     };
-    const error = Object.keys(userData).length
+    let error = Object.keys(userData).length
       ? null
       : 'Envie e-mail, telefone ou visitor_id para identificar o comprador.';
+    if (
+      payload.event_time < Date.now() / 1000 - 7 * 86400 ||
+      payload.event_time > Date.now() / 1000 + 300
+    )
+      error = 'Data da compra fora da janela de envio CAPI. O histórico financeiro foi preservado.';
     const result = db
       .prepare('INSERT OR IGNORE INTO capi_queue VALUES(?,?,?,?,?,?,?,?,?)')
       .run(
@@ -423,6 +428,13 @@ export function createMetaService(db, key, transport = fetch) {
         )
         .all(Date.now());
       for (const item of items) {
+        const sale = db.prepare('SELECT status FROM sales WHERE id=?').get(item.id);
+        if (sale && sale.status !== 'approved') {
+          db.prepare(
+            "UPDATE capi_queue SET status='failed',attempts=5,last_error=? WHERE id=?",
+          ).run('A compra deixou de estar aprovada. Envio cancelado.', item.id);
+          continue;
+        }
         const config = db.prepare('SELECT * FROM pixel_capi WHERE pixel_id=?').get(item.pixel_id);
         if (!config) {
           db.prepare("UPDATE capi_queue SET status='failed',last_error=? WHERE id=?").run(

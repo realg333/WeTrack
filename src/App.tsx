@@ -100,14 +100,24 @@ const statusLabel: Record<string, string> = {
   pending: 'Pendente',
   refunded: 'Reembolsada',
   chargeback: 'Chargeback',
+  canceled: 'Cancelada',
+  disputed: 'Em disputa',
 };
 const statusTone: Record<string, string> = {
   approved: 'green',
   pending: 'amber',
   refunded: 'neutral',
   chargeback: 'red',
+  canceled: 'neutral',
+  disputed: 'amber',
 };
-const paymentName: Record<string, string> = { pix: 'Pix', credit_card: 'Cartão', boleto: 'Boleto' };
+const paymentName: Record<string, string> = {
+  pix: 'Pix',
+  credit_card: 'Cartão',
+  boleto: 'Boleto',
+  debit_card: 'Débito',
+  other: 'Outro',
+};
 
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
@@ -1356,6 +1366,8 @@ function SalesPage({
               ['approved', 'Aprovadas'],
               ['pending', 'Pendentes'],
               ['refunded', 'Reembolsadas'],
+              ['canceled', 'Canceladas'],
+              ['disputed', 'Em disputa'],
             ].map(([value, label]) => (
               <button
                 key={value}

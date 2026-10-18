@@ -25,6 +25,10 @@ export const cloudTables = [
   'campaign_funnel',
   'event_details',
   'sale_attribution',
+  'provider_connections',
+  'provider_orders',
+  'webhook_receipts',
+  'checkout_refs',
 ];
 export function cloudCredentials(env = process.env) {
   for (const prefix of ['DATABASE_', '']) {

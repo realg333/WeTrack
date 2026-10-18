@@ -131,6 +131,7 @@ export type Token = {
   created_at: string;
 };
 export type Integrations = {
+  providers: PlatformConnectionData[];
   pixels: Pixel[];
   tokens: Token[];
   meta: {
@@ -151,3 +152,25 @@ export type Integrations = {
   base_url: string;
 };
 export type Toast = (message: string, error?: boolean) => void;
+export type PlatformConnectionData = {
+  id: string;
+  provider: 'cakto' | 'hotmart' | 'blackcat';
+  name: string;
+  configured: boolean;
+  url: string;
+  test_mode: boolean;
+  purchase_owner: 'checkout' | 'wetrack';
+  pixel_id: string;
+  last_event: { status: string; received_at: string; last_error: string | null } | null;
+};
+export type PlatformReceipt = {
+  can_retry: number;
+  id: string;
+  event_name: string;
+  status: string;
+  test_mode: number;
+  attempts: number;
+  received_at: string;
+  processed_at: string | null;
+  last_error: string | null;
+};

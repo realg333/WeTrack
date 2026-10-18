@@ -26,7 +26,7 @@ export const pixelSchema = z.object({
 });
 export const webhookSchema = z.object({
   order_id: z.string().min(1).max(120),
-  status: z.enum(['approved', 'pending', 'refunded', 'chargeback']),
+  status: z.enum(['approved', 'pending', 'refunded', 'chargeback', 'canceled', 'disputed']),
   amount: z.number().finite().min(0).max(10000000),
   customer_name: z.string().max(100).default('Cliente'),
   customer_email: z.string().email().max(200).optional(),
@@ -37,7 +37,7 @@ export const webhookSchema = z.object({
   fbp: z.string().max(200).optional(),
   fbc: z.string().max(300).optional(),
   product: z.string().min(1).max(150),
-  payment_method: z.enum(['pix', 'credit_card', 'boleto']).default('pix'),
+  payment_method: z.enum(['pix', 'credit_card', 'boleto', 'debit_card', 'other']).default('pix'),
   utm_source: z.string().max(100).default('direct'),
   utm_campaign: z.string().max(200).default(''),
   utm_medium: z.string().max(100).default(''),
@@ -47,6 +47,8 @@ export const webhookSchema = z.object({
   ad_id: z.string().max(200).optional(),
   visitor_id: z.string().max(100).optional(),
   created_at: z.string().datetime({ offset: true }).optional(),
+  approved_at: z.string().datetime({ offset: true }).optional(),
+  action_source: z.enum(['website', 'system_generated']).optional(),
 });
 export function summarize(sales, spend, visits) {
   const approved = sales.filter((s) => s.status === 'approved');

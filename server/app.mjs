@@ -15,6 +15,8 @@ import { createMetaService } from './meta.mjs';
 import { createMetaOAuth } from './oauth.mjs';
 import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
 import { dashboardReport, hierarchyReport, visitorList, visitorJourney } from './reporting.mjs';
+import { createPlatformService } from './platforms.mjs';
+import { providerSchema } from './platform-adapters.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -26,12 +28,10 @@ const dateSchema = z
 
 export function createApp(db, options = {}) {
   const app = express();
-  const meta = createMetaService(
-    db,
-    options.secretKey || randomBytes(32),
-    options.transport || fetch,
-  );
+  const secretKey = options.secretKey || randomBytes(32);
+  const meta = createMetaService(db, secretKey, options.transport || fetch);
   const oauth = createMetaOAuth(db, meta, options.transport || fetch);
+  const platforms = createPlatformService(db, secretKey, meta, options.transport || fetch);
   const range = (query) => {
     const end = dateSchema.parse(query.end || dateKey()),
       start = dateSchema.parse(query.start || end);
@@ -42,6 +42,11 @@ export function createApp(db, options = {}) {
     return { start, end };
   };
   app.locals.meta = meta;
+  app.locals.platforms = platforms;
+  app.locals.drain = async () => {
+    await platforms.drain();
+    await meta.drain();
+  };
   const password = options.password ?? process.env.ADMIN_PASSWORD;
   if (options.serverless) app.set('trust proxy', 1);
   const sessionValid = (sid) =>
@@ -52,7 +57,15 @@ export function createApp(db, options = {}) {
         .get(hash(sid), Date.now()),
     );
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '64kb', type: ['application/json', 'text/plain'] }));
+  app.use(
+    express.json({
+      limit: '256kb',
+      type: ['application/json', 'text/plain'],
+      verify: (req, _res, body) => {
+        if (req.originalUrl.startsWith('/api/webhooks/')) req.rawBody = Buffer.from(body);
+      },
+    }),
+  );
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -107,7 +120,7 @@ export function createApp(db, options = {}) {
       )
     )
       return res.status(401).json({ error: 'Não autorizado.' });
-    await meta.drain();
+    await app.locals.drain();
     res.json({ ok: true });
   });
   app.get('/api/session', (req, res) => {
@@ -221,12 +234,9 @@ export function createApp(db, options = {}) {
             .get(req.params.id, data.project_id);
     if (!entity) return res.status(404).json({ error: 'Item não encontrado nesta operação.' });
     if (entity.meta_id)
-      return res
-        .status(409)
-        .json({
-          error:
-            'Edite este item pela ação de gestão Meta para confirmar a alteração na plataforma.',
-        });
+      return res.status(409).json({
+        error: 'Edite este item pela ação de gestão Meta para confirmar a alteração na plataforma.',
+      });
     db.prepare(`UPDATE ${table} SET active=? WHERE id=?`).run(Number(data.active), req.params.id);
     res.json({ ok: true, local_only: true });
   });
@@ -269,12 +279,10 @@ export function createApp(db, options = {}) {
     const c = db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'Campanha não encontrada.' });
     if (db.prepare('SELECT 1 FROM meta_campaigns WHERE campaign_id=?').get(c.id))
-      return res
-        .status(409)
-        .json({
-          error:
-            'Edite esta campanha pela ação de gestão Meta para confirmar a alteração na plataforma.',
-        });
+      return res.status(409).json({
+        error:
+          'Edite esta campanha pela ação de gestão Meta para confirmar a alteração na plataforma.',
+      });
     const data = z
       .object({ active: z.boolean().optional(), budget: z.number().min(0).max(1000000).optional() })
       .parse(req.body);
@@ -370,9 +378,10 @@ export function createApp(db, options = {}) {
         .all(p.id),
       tokens: db
         .prepare(
-          'SELECT id,name,platform,token_hint,active,last_used,created_at FROM integrations WHERE project_id=?',
+          'SELECT id,name,platform,token_hint,active,last_used,created_at FROM integrations WHERE project_id=? AND active=1',
         )
         .all(p.id),
+      providers: platforms.list(p.id),
       meta: {
         configured: meta.configured,
         connected: Boolean(connection),
@@ -492,7 +501,7 @@ export function createApp(db, options = {}) {
     const data = z
       .object({
         name: z.string().trim().min(2).max(80),
-        platform: z.string().min(2).max(50),
+        platform: z.literal('API personalizada'),
         project_id: z.string(),
       })
       .parse(req.body);
@@ -527,8 +536,54 @@ export function createApp(db, options = {}) {
   });
   app.delete('/api/tokens/:id', (req, res) => {
     db.prepare('DELETE FROM integration_pixels WHERE integration_id=?').run(req.params.id);
-    db.prepare('DELETE FROM integrations WHERE id=?').run(req.params.id);
+    db.prepare('UPDATE integrations SET active=0 WHERE id=?').run(req.params.id);
     res.json({ ok: true });
+  });
+  app.post('/api/platform-connections', (req, res) => {
+    const data = z
+      .object({
+        project_id: z.string(),
+        provider: providerSchema,
+        name: z.string().trim().min(2).max(80),
+      })
+      .strict()
+      .parse(req.body);
+    project(data.project_id);
+    res.status(201).json(platforms.create(data.project_id, data.provider, data.name));
+  });
+  app.patch('/api/platform-connections/:id', async (req, res) => {
+    const data = z
+      .object({
+        project_id: z.string(),
+        name: z.string().trim().min(2).max(80),
+        secret: z.string().trim().min(8).max(1000).optional(),
+        test_mode: z.boolean(),
+        purchase_owner: z.enum(['checkout', 'wetrack']),
+        pixel_id: z.string().default(''),
+        confirm_purchase_owner: z.boolean().default(false),
+        confirm_live: z.boolean().default(false),
+      })
+      .strict()
+      .parse(req.body);
+    project(data.project_id);
+    if (!data.test_mode && !data.confirm_live)
+      return res.status(400).json({ error: 'Confirme a liberação de vendas reais.' });
+    res.json(await platforms.configure(req.params.id, data.project_id, data));
+  });
+  app.get('/api/platform-connections/:id/receipts', (req, res) => {
+    const p = project(req.query.project);
+    res.json(platforms.receipts(p.id, req.params.id));
+  });
+  app.post('/api/platform-connections/:id/reconcile', (req, res) => {
+    const p = project(z.object({ project_id: z.string() }).parse(req.body).project_id);
+    res.json(platforms.reconcile(p.id, req.params.id));
+    if (!options.serverless) void app.locals.drain().catch(() => {});
+  });
+  app.post('/api/platform-receipts/:id/retry', (req, res) => {
+    const p = project(z.object({ project_id: z.string() }).parse(req.body).project_id);
+    platforms.retry(p.id, req.params.id);
+    res.json({ ok: true });
+    if (!options.serverless) void app.locals.drain().catch(() => {});
   });
   app.post('/api/rules', (req, res) => {
     const data = z
@@ -593,6 +648,14 @@ export function createApp(db, options = {}) {
       .prepare('SELECT * FROM integrations WHERE token_hash=? AND active=1')
       .get(hash(req.params.token));
     if (!integration) return res.status(401).json({ error: 'Token inválido ou revogado.' });
+    if (
+      db.prepare('SELECT 1 FROM provider_connections WHERE integration_id=?').get(integration.id)
+    ) {
+      const result = platforms.receive(integration, req.body, req.headers, req.rawBody);
+      res.json(result);
+      if (!options.serverless) void app.locals.drain().catch(() => {});
+      return;
+    }
     const data = webhookSchema.parse(req.body);
     const campaign = resolveCampaign(db, integration.project_id, data.utm_campaign);
     const previous = db
@@ -699,6 +762,12 @@ export function createApp(db, options = {}) {
       .object({
         event_id: z.string().min(8).max(100),
         visitor_id: z.string().min(8).max(100),
+        attribution_code: z
+          .string()
+          .regex(/^wt[a-zA-Z0-9]{16,26}$/)
+          .optional(),
+        fbp: z.string().max(200).optional(),
+        fbc: z.string().max(300).optional(),
         event_name: z.enum([
           'PageView',
           'ViewContent',
@@ -756,6 +825,24 @@ export function createApp(db, options = {}) {
         data.utm_medium || null,
         data.utm_content || null,
         data.utm_term || null,
+      );
+    if (data.attribution_code)
+      db.prepare(
+        "INSERT INTO checkout_refs VALUES(?,?,?,?) ON CONFLICT(project_id,code) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at WHERE json_extract(checkout_refs.payload,'$.visitor_id')=json_extract(excluded.payload,'$.visitor_id')",
+      ).run(
+        pixel.project_id,
+        data.attribution_code,
+        JSON.stringify({
+          visitor_id: data.visitor_id,
+          utm_source: data.utm_source,
+          utm_campaign: data.utm_campaign,
+          utm_medium: data.utm_medium || '',
+          utm_content: data.utm_content || '',
+          utm_term: data.utm_term || '',
+          fbp: data.fbp,
+          fbc: data.fbc,
+        }),
+        Date.now() + 30 * 86400000,
       );
     res.json({ ok: true });
   });
