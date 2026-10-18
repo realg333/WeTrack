@@ -4,7 +4,7 @@ Aplicação de rastreamento e análise de campanhas, com interface em português
 
 ## Publicação na Vercel
 
-Painel: **https://wetrack-wetrack.vercel.app**. Projeto `wetrack` na equipe `Wetrack`, conectado a `realg333/WeTrack` (branch `main`).
+Painel: **https://wetrack-psi.vercel.app**. Projeto `wetrack` na equipe `Wetrack`, conectado a `realg333/WeTrack` (branch `main`).
 
 O ambiente publicado contém apenas **Descomplica Libras**. As sessões, visitas e vendas ficam no Turso Starter; arquivos temporários de Functions não são usados como banco. A senha gerada está no arquivo local privado `data/production-access.txt`, ignorado pelo Git e pelo envio à Vercel. A configuração inicial foi enviada criptografada em `WETRACK_BOOTSTRAP`; o marcador no banco impede reaplicar essa cópia sobre dados novos. O banco local e o banco publicado passam a ser independentes.
 
@@ -12,7 +12,7 @@ O ambiente publicado contém apenas **Descomplica Libras**. As sessões, visitas
 
 Compras recebidas por webhook iniciam o envio CAPI com `waitUntil` depois da resposta HTTP. Há também uma verificação diária da fila às 06:00 UTC (03:00 de Brasília), compatível com o plano Hobby. Reenvios não executados por falta de tráfego aguardam a próxima verificação; não existe um processo contínuo a cada 30 segundos na Vercel.
 
-A URL HTTPS está pronta. A autorização por link do Facebook ainda exige `META_APP_ID`, `META_APP_SECRET` e a configuração do aplicativo, com retorno `https://wetrack-wetrack.vercel.app/api/meta/oauth/callback`.
+A URL HTTPS está pronta. A autorização por link do Facebook ainda exige `META_APP_ID`, `META_APP_SECRET` e a configuração do aplicativo, com retorno `https://wetrack-psi.vercel.app/api/meta/oauth/callback`.
 
 ## Executar
 

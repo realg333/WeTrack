@@ -13,7 +13,7 @@ Em 18/10/2026, o painel foi ajustado para mostrar o ID Meta e identificar o modo
 | Pixel WeTrack             | `px_libras_4497992933816815`         |
 | Código de teste           | `TEST74475`                          |
 | Versão Graph API validada | `v26.0`                              |
-| Hospedagem WeTrack        | https://wetrack-wetrack.vercel.app   |
+| Hospedagem WeTrack        | https://wetrack-psi.vercel.app   |
 
 ## Validação realizada
 
@@ -27,7 +27,7 @@ O site publicado já referencia o mesmo ID Meta. O script WeTrack não reinicial
 
 Nenhuma alteração foi feita no site publicado. Não instale no site o código que aponta para `127.0.0.1`: ele só funciona neste computador.
 
-1. A WeTrack já está publicada em `https://wetrack-wetrack.vercel.app`, com `PUBLIC_URL` nesse endereço.
+1. A WeTrack já está publicada em `https://wetrack-psi.vercel.app`, com `PUBLIC_URL` nesse endereço.
 2. No site, adicione o código gerado em **Integrações → Pixel de rastreio**. A origem autorizada precisa continuar sendo `https://www.descomplicalibras.shop`.
 3. Abra uma URL com UTMs e confira os eventos na WeTrack. A instalação deve respeitar o consentimento aplicável no site.
 
@@ -36,7 +36,7 @@ Modelo de instalação, com endereço público a substituir:
 ```html
 <script
   async
-  src="https://wetrack-wetrack.vercel.app/pixel.js"
+  src="https://wetrack-psi.vercel.app/pixel.js"
   data-pixel="px_libras_4497992933816815"
   data-checkout-origin="https://pay.cakto.com.br"
 ></script>
