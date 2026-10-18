@@ -1,0 +1,10 @@
+data/
+.env
+.env.*
+.git/
+.codex/
+.agents/
+.browser/
+test-results/
+playwright-report/
+*.log
