@@ -111,7 +111,7 @@ const paymentName: Record<string, string> = { pix: 'Pix', credit_card: 'Cartão'
 
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
-  const [project, setProject] = useState(() => localStorage.getItem('wt_project') || 'demo');
+  const [project, setProject] = useState(() => localStorage.getItem('wt_project') || 'workspace');
   const [projects, setProjects] = useState<Project[]>([]);
   const [period, setPeriod] = useState('7');
   const [customDates, setCustomDates] = useState({ start: localDay(), end: localDay() });
@@ -182,7 +182,14 @@ export default function App() {
   useEffect(() => {
     if (authenticated)
       api<Project[]>('/projects')
-        .then(setProjects)
+        .then((available) => {
+          setProjects(available);
+          setProject((current) =>
+            available.some((p) => p.id === current)
+              ? current
+              : available.find((p) => !p.demo)?.id || available[0]?.id || 'workspace',
+          );
+        })
         .catch((e) => notify(e.message, true));
   }, [authenticated, notify]);
   const load = useCallback(

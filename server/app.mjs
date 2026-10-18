@@ -43,8 +43,14 @@ export function createApp(db, options = {}) {
   };
   app.locals.meta = meta;
   const password = options.password ?? process.env.ADMIN_PASSWORD;
-  const sessions = new Map();
-  const attempts = new Map();
+  if (options.serverless) app.set('trust proxy', 1);
+  const sessionValid = (sid) =>
+    Boolean(
+      sid &&
+      db
+        .prepare('SELECT 1 AS ok FROM admin_sessions WHERE id_hash=? AND expires_at>?')
+        .get(hash(sid), Date.now()),
+    );
   app.disable('x-powered-by');
   app.use(express.json({ limit: '64kb', type: ['application/json', 'text/plain'] }));
   app.use((req, res, next) => {
@@ -64,6 +70,7 @@ export function createApp(db, options = {}) {
     req.path.startsWith('/api/webhooks/') ||
     req.path.startsWith('/api/meta/oauth/start/') ||
     req.path === '/api/meta/oauth/callback' ||
+    req.path === '/api/internal/capi-drain' ||
     ['/api/health', '/api/session', '/api/login'].includes(req.path);
   app.use('/api', (req, res, next) => {
     // originalUrl retains the /api mount prefix.
@@ -74,7 +81,7 @@ export function createApp(db, options = {}) {
       .map((s) => s.trim())
       .find((s) => s.startsWith('wt_session='))
       ?.slice(11);
-    if (password && (!sessionId || (sessions.get(sessionId) || 0) < Date.now()))
+    if (password && !sessionValid(sessionId))
       return res.status(401).json({ error: 'Entre para acessar sua operação.' });
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.origin) {
       const allowed = new Set([
@@ -90,6 +97,19 @@ export function createApp(db, options = {}) {
     next();
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/api/internal/capi-drain', async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (
+      !expected ||
+      !timingSafeEqual(
+        Buffer.from(hash(req.headers.authorization || '')),
+        Buffer.from(hash(`Bearer ${expected}`)),
+      )
+    )
+      return res.status(401).json({ error: 'Não autorizado.' });
+    await meta.drain();
+    res.json({ ok: true });
+  });
   app.get('/api/session', (req, res) => {
     const sid = req.headers.cookie
       ?.split(';')
@@ -97,29 +117,34 @@ export function createApp(db, options = {}) {
       .find((s) => s.startsWith('wt_session='))
       ?.slice(11);
     res.json({
-      authenticated: !password || Boolean(sid && sessions.get(sid) > Date.now()),
+      authenticated: !password || sessionValid(sid),
       local: !password,
     });
   });
   app.post('/api/login', (req, res) => {
-    const key = req.ip;
-    const attempt = attempts.get(key) || { count: 0, until: Date.now() + 600000 };
+    const key = hash(req.ip || 'unknown');
+    const attempt = db
+      .prepare('SELECT count,expires_at AS until FROM login_attempts WHERE ip_hash=?')
+      .get(key) || { count: 0, until: Date.now() + 600000 };
     if (attempt.until < Date.now()) {
       attempt.count = 0;
       attempt.until = Date.now() + 600000;
     }
-    if (++attempt.count > 10)
+    attempt.count++;
+    db.prepare(
+      'INSERT INTO login_attempts VALUES(?,?,?) ON CONFLICT(ip_hash) DO UPDATE SET count=excluded.count,expires_at=excluded.expires_at',
+    ).run(key, attempt.count, attempt.until);
+    if (attempt.count > 10)
       return res.status(429).json({ error: 'Muitas tentativas. Tente em 10 minutos.' });
-    attempts.set(key, attempt);
     if (
       password &&
       !timingSafeEqual(Buffer.from(hash(String(req.body.password))), Buffer.from(hash(password)))
     )
       return res.status(401).json({ error: 'Senha incorreta.' });
-    attempts.delete(key);
+    db.prepare('DELETE FROM login_attempts WHERE ip_hash=?').run(key);
     const sid = randomBytes(32).toString('hex');
-    for (const [key, expires] of sessions) if (expires < Date.now()) sessions.delete(key);
-    sessions.set(sid, Date.now() + 86400000);
+    db.prepare('DELETE FROM admin_sessions WHERE expires_at<?').run(Date.now());
+    db.prepare('INSERT INTO admin_sessions VALUES(?,?)').run(hash(sid), Date.now() + 86400000);
     res.setHeader(
       'Set-Cookie',
       `wt_session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400${process.env.PUBLIC_URL?.startsWith('https:') ? '; Secure' : ''}`,
@@ -132,7 +157,7 @@ export function createApp(db, options = {}) {
       .map((s) => s.trim())
       .find((s) => s.startsWith('wt_session='))
       ?.slice(11);
-    if (sid) sessions.delete(sid);
+    if (sid) db.prepare('DELETE FROM admin_sessions WHERE id_hash=?').run(hash(sid));
     res.setHeader('Set-Cookie', 'wt_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
     res.json({ ok: true });
   });

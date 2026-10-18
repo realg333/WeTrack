@@ -4,9 +4,13 @@ import { dirname, resolve } from 'node:path';
 import { dateKey, money } from './domain.mjs';
 import { seedAnalyticsDemo } from './demo-analytics.mjs';
 
-export function createDatabase(path = process.env.DATABASE_PATH || './data/wetrack.sqlite') {
+export function createDatabase(
+  path = process.env.DATABASE_PATH || './data/wetrack.sqlite',
+  options = {},
+) {
   if (path !== ':memory:') mkdirSync(dirname(resolve(path)), { recursive: true });
-  const db = new DatabaseSync(path);
+  const Driver = options.Driver || DatabaseSync;
+  const db = new Driver(path);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
     CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, demo INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, source TEXT NOT NULL, budget REAL DEFAULT 0, active INTEGER DEFAULT 1, created_at TEXT NOT NULL);
@@ -32,13 +36,17 @@ export function createDatabase(path = process.env.DATABASE_PATH || './data/wetra
     CREATE TABLE IF NOT EXISTS oauth_links (ticket_hash TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), expires_at INTEGER NOT NULL, used INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS oauth_states (state_hash TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), cookie_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS admin_sessions (id_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS login_attempts (ip_hash TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS events_visitor ON events(project_id,visitor_id,created_at);
     CREATE INDEX IF NOT EXISTS attribution_visitor ON sale_attribution(visitor_id);
     CREATE INDEX IF NOT EXISTS sales_project_day ON sales(project_id,day);
     CREATE INDEX IF NOT EXISTS events_project_day ON events(project_id,day);
   `);
-  if (!db.prepare('SELECT id FROM projects LIMIT 1').get()) seed(db);
-  seedAnalyticsDemo(db);
+  if (options.seedDemo !== false) {
+    if (!db.prepare('SELECT id FROM projects LIMIT 1').get()) seed(db);
+    seedAnalyticsDemo(db);
+  }
   return db;
 }
 
