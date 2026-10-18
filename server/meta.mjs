@@ -2,6 +2,7 @@ import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
+import { createMetaManagement } from './management.mjs';
 
 export function loadSecretKey(path = './data/secret.key') {
   if (process.env.SECRETS_KEY) {
@@ -174,15 +175,15 @@ export function createMetaService(db, key, transport = fetch) {
       const time = { time_increment: '1', time_range: { since: start, until: end }, limit: '500' };
       const [catalog, sets, ads, campaignRows, adRows] = await Promise.all([
         list(`${account.id}/campaigns`, token, {
-          fields: 'id,name,effective_status,daily_budget',
+          fields: 'id,name,status,effective_status,daily_budget',
           limit: '500',
         }),
         list(`${account.id}/adsets`, token, {
-          fields: 'id,name,campaign_id,effective_status,daily_budget',
+          fields: 'id,name,campaign_id,status,effective_status,daily_budget',
           limit: '500',
         }),
         list(`${account.id}/ads`, token, {
-          fields: 'id,name,campaign_id,adset_id,effective_status',
+          fields: 'id,name,campaign_id,adset_id,status,effective_status',
           limit: '500',
         }),
         list(`${account.id}/insights`, token, {
@@ -235,7 +236,7 @@ export function createMetaService(db, key, transport = fetch) {
             r.name || 'Campanha Meta',
             'Meta Ads',
             Number(r.daily_budget || 0) / 100,
-            r.effective_status === 'PAUSED' ? 0 : 1,
+            ['PAUSED', 'ARCHIVED', 'DELETED'].includes(r.status || r.effective_status) ? 0 : 1,
             new Date().toISOString(),
           );
           db.prepare(
@@ -265,7 +266,7 @@ export function createMetaService(db, key, transport = fetch) {
               campaignKey(projectId, r.campaign_id),
               r.id,
               r.name || 'Conjunto Meta',
-              r.effective_status === 'PAUSED' ? 0 : 1,
+              ['PAUSED', 'ARCHIVED', 'DELETED'].includes(r.status || r.effective_status) ? 0 : 1,
               Number(r.daily_budget || 0) / 100,
             );
         const ads = new Map(d.ads.map((r) => [r.id, r]));
@@ -281,7 +282,7 @@ export function createMetaService(db, key, transport = fetch) {
               entityKey('set', projectId, r.adset_id),
               r.id,
               r.name || 'Anúncio Meta',
-              r.effective_status === 'PAUSED' ? 0 : 1,
+              ['PAUSED', 'ARCHIVED', 'DELETED'].includes(r.status || r.effective_status) ? 0 : 1,
             );
         for (const r of d.campaignRows) {
           const cid = campaignKey(projectId, r.campaign_id);
@@ -463,6 +464,7 @@ export function createMetaService(db, key, transport = fetch) {
     }
   }
   return {
+    management: createMetaManagement(db, graph, accountsFor, (cipher) => decrypt(cipher, key)),
     connect,
     accountsFor,
     selectAccount,

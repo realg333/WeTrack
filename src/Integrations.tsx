@@ -516,8 +516,8 @@ export default function IntegrationsPage({
             <CircleHelp size={16} />
             Contas novas começam desativadas. Apenas as selecionadas entram na sincronização e nos
             relatórios. Esta versão calcula valores em BRL; contas em outras moedas ficam
-            disponíveis na lista. Alterações de status de campanhas, conjuntos e anúncios são
-            locais.
+            disponíveis na lista. A gestão de campanhas, conjuntos e anúncios exige ads_management e
+            acesso suficiente à conta na Meta.
           </div>
         </>
       )}
@@ -1278,9 +1278,9 @@ export default function IntegrationsPage({
               <h3>Antes de conectar</h3>
               {[
                 'Gere o token no ambiente oficial da Meta',
-                'Conceda ads_read e acesso às suas contas de anúncios',
+                'Conceda ads_read e ads_management e acesso às suas contas de anúncios',
                 'Configure META_GRAPH_VERSION no arquivo .env',
-                'Esta versão importa contas em BRL, sem alterar anúncios',
+                'A gestão de anúncios permite alterações nas contas em BRL selecionadas',
               ].map((t) => (
                 <div key={t}>
                   <span className="requirement-dot" />

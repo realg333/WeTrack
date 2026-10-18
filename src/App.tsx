@@ -740,8 +740,8 @@ export default function App() {
                 <>
                   <div className="inline-notice">
                     <CircleHelp size={15} />
-                    As campanhas são gerenciadas localmente. Alterações não são enviadas às
-                    plataformas de anúncios.
+                    Em itens conectados à Meta, confira a conta e confirme para alterar status, nome
+                    ou orçamento. Campanhas manuais são gerenciadas na WeTrack.
                   </div>
                   <MetricCards metrics={data.metrics} />
                   <CampaignManager

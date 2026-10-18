@@ -64,7 +64,7 @@ test('OAuth requires HTTPS and app configuration, expires tickets and rejects st
       state = url.searchParams.get('state'),
       cookie = start.cookie.split(';')[0];
     assert.equal(url.origin, 'https://www.facebook.com');
-    assert.equal(url.searchParams.get('scope'), 'ads_read');
+    assert.equal(url.searchParams.get('scope'), 'ads_read,ads_management');
     assert.equal(
       url.searchParams.get('redirect_uri'),
       'https://wetrack.example.com/api/meta/oauth/callback',

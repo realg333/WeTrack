@@ -5327,6 +5327,28 @@ form > label > input {
   margin: 12px 0;
   line-height: 1.7;
 }
+.meta-edit-fields {
+  border: 0;
+  padding: 0;
+  margin: 18px 0;
+  min-width: 0;
+}
+.meta-edit-fields > label {
+  margin: 16px 0;
+}
+.meta-edit-fields small {
+  color: var(--muted);
+}
+.meta-edit-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+.meta-edit-confirm input {
+  width: auto;
+  margin-top: 4px;
+}
 .account-selection {
   display: flex;
   gap: 12px;

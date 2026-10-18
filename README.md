@@ -12,7 +12,7 @@ O ambiente publicado contém apenas **Descomplica Libras**. As sessões, visitas
 
 Compras recebidas por webhook iniciam o envio CAPI com `waitUntil` depois da resposta HTTP. Há também uma verificação diária da fila às 06:00 UTC (03:00 de Brasília), compatível com o plano Hobby. Reenvios não executados por falta de tráfego aguardam a próxima verificação; não existe um processo contínuo a cada 30 segundos na Vercel.
 
-A URL HTTPS está pronta. A autorização por link do Facebook ainda exige `META_APP_ID`, `META_APP_SECRET` e a configuração do aplicativo, com retorno `https://wetrack-psi.vercel.app/api/meta/oauth/callback`.
+A URL HTTPS e as variáveis do aplicativo Meta estão configuradas, com retorno `https://wetrack-psi.vercel.app/api/meta/oauth/callback`. O responsável informou conexão bem-sucedida no perfil principal. O acesso por perfis externos ainda depende das aprovações da Meta.
 
 ## Executar
 
@@ -34,14 +34,15 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 - Dashboard com faturamento aprovado, investimento, lucro sobre mídia, ROAS, CPA, ticket médio, visitantes, conversão e origens.
 - Filtros, gráficos diários, busca, paginação, detalhes e exportação CSV.
 - Campanhas locais, ativação local e registro de investimento diário. Orçamento não é contabilizado como gasto.
-- Importação manual de campanhas, custos, cliques e impressões da Meta por token oficial, com paginação e atualização sem duplicação.
+- Conexão Meta por OAuth, seleção de contas e importação de campanhas, custos, cliques e impressões, com paginação e atualização sem duplicação.
+- Edição de nome e status de campanhas, conjuntos e anúncios na Meta, e ajuste de orçamento diário ou total no nível que já controla o orçamento, com confirmação explícita da conta e do resultado.
 - Pixel com PageView, eventos manuais, autorização por domínio, identificador de visitante e preservação/propagação de UTMs por sete dias.
 - API de vendas com tokens exclusivos, atualização de status, deduplicação e recuperação de atribuição pelo visitante.
 - CAPI opcional: tokens criptografados, contato com SHA-256, fila persistente, ID estável e até cinco tentativas com espera progressiva.
 - Histórico de envios CAPI, confirmação de recebimento pela Meta e reenvio de falhas.
 - Alertas de indicadores no painel, notificações internas, preferências, temas e layout responsivo.
 
-**Limites:** MVP para um administrador. OAuth com Facebook está implementado e aguarda configuração do aplicativo Meta. Adaptadores nativos Cakto/Hotmart/Kiwify, ações de escrita na Meta, push, cobrança e aplicativo mobile ainda não estão implementados. Use a API personalizada com o formato abaixo; payloads nativos de outras plataformas precisam de adaptação.
+**Limites:** MVP para um administrador. OAuth e gestão de anúncios exigem as permissões e o acesso aprovados pela Meta. Criação e duplicação de anúncios, edição de criativos, adaptadores nativos Cakto/Hotmart/Kiwify, push, cobrança e aplicativo mobile ainda não estão implementados. Use a API personalizada com o formato abaixo; payloads nativos de outras plataformas precisam de adaptação.
 
 ## Configuração
 
@@ -64,8 +65,8 @@ O banco fica em `data/wetrack.sqlite`. Tokens de webhook são guardados por hash
 ## Meta Ads
 
 1. Defina `META_GRAPH_VERSION` com uma versão **suportada pelo seu aplicativo Meta** e reinicie a API. O código não presume uma versão.
-2. Gere um token oficial de usuário/usuário do sistema com `ads_read` e acesso às contas necessárias.
-3. Em **Integrações → Meta Ads → Conectar por token**, informe o token. A WeTrack consulta `me/adaccounts` para validar o acesso e listar todas as contas.
+2. Configure o Login para Empresas com `ads_read` e `ads_management`, além dos requisitos de `public_profile`, e conecte pelo fluxo OAuth descrito abaixo.
+3. Como alternativa avançada, informe um token oficial de usuário/usuário do sistema com essas permissões em **Integrações → Meta Ads → Conectar com Facebook → Conexão manual · avançado**. A WeTrack consulta `me/adaccounts` para validar o acesso e listar as contas.
 4. **Ative apenas as contas que pertencem à operação.** Contas novas começam desativadas. Contas em outras moedas aparecem, mas não podem ser ativadas nesta versão.
 5. Use **Sincronizar 30 dias** para importar campanhas, conjuntos, anúncios, custos diários e etapas do funil. A API aceita intervalos de até 90 dias. A sincronização consulta apenas contas selecionadas.
 
@@ -73,15 +74,17 @@ Somente contas em **BRL**, sem conversão cambial. Custos seguem as datas do rel
 
 Desativar uma conta a exclui imediatamente dos relatórios, mantendo o histórico salvo. Vendas sem campanha identificada permanecem no total da operação. Custos dos níveis campanha/conjunto/anúncio nunca são somados entre si no dashboard.
 
-Ativar/pausar uma campanha, conjunto ou anúncio na interface é uma ação **local** e não altera anúncios. Custos importados não podem ser sobrescritos pelo investimento manual. Chamadas Meta foram verificadas com transporte simulado. Validação ao vivo exige credenciais, permissões e versão válida; nenhuma conta real foi conectada no desenvolvimento.
+Nos itens importados, o botão **Editar na Meta** e o controle de status abrem uma confirmação com a conta e os valores atuais consultados na Meta. É possível alterar nome, status e orçamento próprio diário ou total; anúncios individuais não possuem orçamento próprio. A edição preserva o nível que controla o orçamento e não converte entre orçamento de campanha e de conjunto. A API rejeita itens alterados desde a abertura da edição e só atualiza o cadastro local após confirmar os novos valores na Meta. Erros de comunicação podem deixar o resultado do pedido incerto: consulte os valores antes de repetir.
+
+Campanhas manuais continuam locais. Custos importados não podem ser sobrescritos pelo investimento manual. Chamadas de gestão foram verificadas com transporte simulado; isso não substitui a validação real para análise da Meta. [Preparação da análise do aplicativo](docs/meta-access-review.md).
 
 ## Conexão por link (Facebook OAuth)
 
 O fluxo está implementado e pode ser aberto em outro navegador ou Multilogin. Para ativá-lo, publique a WeTrack com HTTPS e configure no servidor `PUBLIC_URL`, `META_GRAPH_VERSION`, `META_APP_ID` e `META_APP_SECRET`. Nunca coloque o segredo em variáveis `VITE_*`. Se usar Login do Facebook para Empresas, informe também `META_LOGIN_CONFIG_ID` de uma configuração com o acesso a anúncios necessário.
 
-No aplicativo Meta, cadastre exatamente `https://SEU-DOMINIO/api/meta/oauth/callback` como retorno OAuth. Configure o nome público **WeTrack**, os domínios e as permissões; acesso por pessoas fora dos papéis de desenvolvimento depende da configuração e das aprovações exigidas pela Meta, incluindo `ads_read`. Apenas possuir um domínio não conclui essa configuração.
+No aplicativo Meta, cadastre exatamente `https://SEU-DOMINIO/api/meta/oauth/callback` como retorno OAuth. Configure o nome público **WeTrack**, os domínios e as permissões; acesso por pessoas fora dos papéis de desenvolvimento depende da configuração e das aprovações exigidas pela Meta, incluindo `public_profile`, `ads_read` e `ads_management` para a gestão. Apenas possuir um domínio não conclui essa configuração.
 
-Em **Integrações → Meta Ads → Conectar com Facebook / gerar link**, gere e copie o link para o Multilogin. Ele vale por 15 minutos e é de uso único. Conclua o consentimento no mesmo navegador, volte ao painel, atualize as contas e selecione as desejadas. O retorno usa estado aleatório e cookie seguro para conferir a sessão; credenciais ficam criptografadas no servidor. O Multilogin não recebe uma sessão administrativa da WeTrack. O fluxo foi testado com transporte simulado; ainda precisa de homologação com um aplicativo Meta real.
+Em **Integrações → Meta Ads → Copiar link de conexão**, gere e copie o link para o Multilogin. Ele vale por 15 minutos e é de uso único. Conclua o consentimento no mesmo navegador, volte ao painel, atualize as contas e selecione as desejadas. O retorno usa estado aleatório e cookie seguro para conferir a sessão; credenciais ficam criptografadas no servidor. O Multilogin não recebe uma sessão administrativa da WeTrack. Os testes automatizados do fluxo usam transporte simulado; a autorização de cada perfil real depende da Meta.
 
 ## Campanhas, funil e visitas
 
@@ -168,6 +171,7 @@ server/db.mjs         SQLite e demonstração
 server/domain.mjs     Fórmulas e validação
 server/meta.mjs       Marketing API, seleção de contas, criptografia e fila CAPI
 server/oauth.mjs      Autorização por link e retorno Facebook
+server/management.mjs Edição na Meta com confirmação e revisão dos valores
 server/reporting.mjs  Hierarquia, funil e trajetos
 server/attribution.mjs Resolução de IDs e nomes sem ambiguidade
 server/pixel.js       Script instalável

@@ -11,6 +11,7 @@ import {
 import { api, brl, decimal, downloadCsv, localDay, mutate, number } from './lib';
 import { Badge, Empty, Modal, SearchBox, Spinner, Toggle } from './components';
 import type { Dashboard, HierarchyRow, Toast } from './types';
+import MetaEntityEditor from './MetaEntityEditor';
 
 type Level = 'campaigns' | 'adsets' | 'ads';
 const levels = [
@@ -35,6 +36,11 @@ export default function CampaignManager({
   const [campaign, setCampaign] = useState<HierarchyRow | null>(null);
   const [adset, setAdset] = useState<HierarchyRow | null>(null);
   const [selected, setSelected] = useState<HierarchyRow | null>(null);
+  const [editing, setEditing] = useState<{
+    row: HierarchyRow;
+    level: Level;
+    desiredActive?: boolean;
+  } | null>(null);
   const [rows, setRows] = useState<HierarchyRow[]>([]);
   const [query, setQuery] = useState(''),
     [status, setStatus] = useState('all');
@@ -76,6 +82,7 @@ export default function CampaignManager({
     setCampaign(null);
     setAdset(null);
     setSelected(null);
+    setEditing(null);
   }, [data.project.id]);
   const changeLevel = (value: Level) => {
     setLevel(value);
@@ -252,7 +259,7 @@ export default function CampaignManager({
             <table className="data-table campaign-table">
               <thead>
                 <tr>
-                  <th>Status local</th>
+                  <th>Status configurado</th>
                   <th>{title}</th>
                   <th>Orçamento/dia</th>
                   <th>Investimento</th>
@@ -261,6 +268,7 @@ export default function CampaignManager({
                   <th>Vendas</th>
                   <th>CPA</th>
                   <th>Cliques</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,8 +277,12 @@ export default function CampaignManager({
                     <td>
                       <Toggle
                         checked={Boolean(row.active)}
-                        label={`${row.active ? 'Pausar' : 'Ativar'} ${row.name} localmente`}
+                        label={`${row.active ? 'Pausar' : 'Ativar'} ${row.name}${row.account_id ? ' na Meta' : ' localmente'}`}
                         onChange={async () => {
+                          if (row.account_id && row.external_id) {
+                            setEditing({ row, level, desiredActive: !row.active });
+                            return;
+                          }
                           if (level === 'campaigns') {
                             onToggle(row.id, !row.active);
                             return;
@@ -308,6 +320,17 @@ export default function CampaignManager({
                     <td>{number(row.sales)}</td>
                     <td>{row.sales ? brl(row.cpa) : '—'}</td>
                     <td>{number(row.clicks)}</td>
+                    <td>
+                      {row.account_id && row.external_id && (
+                        <button
+                          className="button secondary"
+                          aria-label={`Editar ${row.name} na Meta`}
+                          onClick={() => setEditing({ row, level })}
+                        >
+                          Editar na Meta
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -318,7 +341,7 @@ export default function CampaignManager({
                   <td />
                   <td>{brl(filtered.reduce((v, c) => v + c.spend, 0))}</td>
                   <td>{brl(filtered.reduce((v, c) => v + c.revenue, 0))}</td>
-                  <td colSpan={4} />
+                  <td colSpan={5} />
                 </tr>
               </tfoot>
             </table>
@@ -349,6 +372,22 @@ export default function CampaignManager({
           correspondente no webhook ou nas UTMs. Valores sem esse vínculo permanecem na campanha.
         </p>
       </section>
+      {editing && (
+        <MetaEntityEditor
+          key={`${data.project.id}:${editing.level}:${editing.row.id}`}
+          project={data.project.id}
+          level={editing.level}
+          id={editing.row.id}
+          desiredActive={editing.desiredActive}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setRevision((v) => v + 1);
+            onExport('Alteração confirmada na Meta.');
+            void onReload();
+          }}
+        />
+      )}
       {selected && (
         <Modal
           title={selected.name}
@@ -356,7 +395,7 @@ export default function CampaignManager({
           onClose={() => setSelected(null)}
         >
           <Badge tone={selected.active ? 'green' : 'neutral'}>
-            {selected.active ? 'Ativo localmente' : 'Pausado localmente'}
+            {selected.active ? 'Configurado como ativo' : 'Configurado como pausado'}
           </Badge>
           <dl className="entity-details">
             {[

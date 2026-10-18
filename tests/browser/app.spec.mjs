@@ -35,8 +35,12 @@ test('dashboard, filters, navigation, details, theme and export', async ({ page 
     'true',
   );
   await expect(page.locator('.campaign-table tbody tr')).toHaveCount(2);
+  await expect(page.locator('.campaign-table tbody .campaign-id').first()).toContainText('_ad');
+  const adName = await page.locator('.campaign-table tbody .entity-link').first().innerText();
   await page.locator('.campaign-table tbody .entity-link').first().click();
-  await expect(page.getByRole('heading', { name: /Anúncio/ })).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByRole('heading', { name: adName, exact: true }),
+  ).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Vendas', exact: true }).click();
   await page.getByRole('button', { name: 'Pendentes', exact: true }).click();

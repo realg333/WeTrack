@@ -83,7 +83,7 @@ export function createMetaOAuth(db, meta, transport = fetch) {
       state,
       ...(process.env.META_LOGIN_CONFIG_ID
         ? { config_id: process.env.META_LOGIN_CONFIG_ID }
-        : { scope: 'ads_read' }),
+        : { scope: 'ads_read,ads_management' }),
     }).forEach(([key, value]) => url.searchParams.set(key, value));
     return {
       url: url.href,

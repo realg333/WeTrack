@@ -176,6 +176,32 @@ export function createApp(db, options = {}) {
       parent = z.string().max(100).optional().parse(req.query.parent);
     res.json({ level, rows: hierarchyReport(db, p.id, r.start, r.end, level, parent) });
   });
+  app.get('/api/meta/entities/:level/:id', async (req, res) => {
+    const p = project(z.string().parse(req.query.project));
+    const level = z.enum(['campaigns', 'adsets', 'ads']).parse(req.params.level);
+    res.json(await meta.management.inspect(p.id, level, req.params.id));
+  });
+  app.patch('/api/meta/entities/:level/:id', async (req, res) => {
+    const input = z
+      .object({
+        project_id: z.string(),
+        expected_revision: z.string().regex(/^[a-f0-9]{64}$/),
+        name: z.string().trim().min(1).max(200).optional(),
+        active: z.boolean().optional(),
+        budget: z
+          .number()
+          .positive()
+          .max(1000000)
+          .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 0.000001)
+          .optional(),
+      })
+      .strict()
+      .refine((v) => v.name !== undefined || v.active !== undefined || v.budget !== undefined)
+      .parse(req.body);
+    project(input.project_id);
+    const level = z.enum(['campaigns', 'adsets', 'ads']).parse(req.params.level);
+    res.json(await meta.management.update(input.project_id, level, req.params.id, input));
+  });
   app.patch('/api/ad-entities/:level/:id', (req, res) => {
     const data = z.object({ project_id: z.string(), active: z.boolean() }).parse(req.body);
     project(data.project_id);
@@ -185,15 +211,22 @@ export function createApp(db, options = {}) {
       level === 'adsets'
         ? db
             .prepare(
-              'SELECT a.id FROM ad_sets a JOIN campaigns c ON c.id=a.campaign_id WHERE a.id=? AND c.project_id=?',
+              'SELECT a.id,m.external_id AS meta_id FROM ad_sets a JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE a.id=? AND c.project_id=?',
             )
             .get(req.params.id, data.project_id)
         : db
             .prepare(
-              'SELECT ad.id FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id WHERE ad.id=? AND c.project_id=?',
+              'SELECT ad.id,m.external_id AS meta_id FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE ad.id=? AND c.project_id=?',
             )
             .get(req.params.id, data.project_id);
     if (!entity) return res.status(404).json({ error: 'Item não encontrado nesta operação.' });
+    if (entity.meta_id)
+      return res
+        .status(409)
+        .json({
+          error:
+            'Edite este item pela ação de gestão Meta para confirmar a alteração na plataforma.',
+        });
     db.prepare(`UPDATE ${table} SET active=? WHERE id=?`).run(Number(data.active), req.params.id);
     res.json({ ok: true, local_only: true });
   });
@@ -235,6 +268,13 @@ export function createApp(db, options = {}) {
   app.patch('/api/campaigns/:id', (req, res) => {
     const c = db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'Campanha não encontrada.' });
+    if (db.prepare('SELECT 1 FROM meta_campaigns WHERE campaign_id=?').get(c.id))
+      return res
+        .status(409)
+        .json({
+          error:
+            'Edite esta campanha pela ação de gestão Meta para confirmar a alteração na plataforma.',
+        });
     const data = z
       .object({ active: z.boolean().optional(), budget: z.number().min(0).max(1000000).optional() })
       .parse(req.body);
