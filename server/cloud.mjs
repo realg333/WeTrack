@@ -3,6 +3,7 @@ import { createClient } from '@libsql/client';
 import { createDatabase } from './db.mjs';
 import { createApp } from './app.mjs';
 import { decrypt } from './meta.mjs';
+import { createHash } from 'node:crypto';
 
 export const cloudTables = [
   'projects',
@@ -103,8 +104,23 @@ export function cloudApp() {
       const credentials = cloudCredentials(),
         key = Buffer.from(process.env.SECRETS_KEY, 'hex'),
         client = createClient(credentials);
+      let startup;
       try {
+        const existing = await client.execute(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='provider_connections'",
+        );
+        const before = existing.rows.length
+          ? Number(
+              (await client.execute('SELECT COUNT(*) AS n FROM provider_connections')).rows[0].n,
+            )
+          : 0;
         await initializeCloud(client, key, process.env.WETRACK_BOOTSTRAP);
+        startup = {
+          before,
+          after: Number(
+            (await client.execute('SELECT COUNT(*) AS n FROM provider_connections')).rows[0].n,
+          ),
+        };
       } finally {
         client.close();
       }
@@ -125,6 +141,11 @@ export function cloudApp() {
             const native = db.prepare(sql).all(),
               remote = (await check.execute(sql)).rows;
             return {
+              database_fingerprint: createHash('sha256')
+                .update(credentials.url)
+                .digest('hex')
+                .slice(0, 16),
+              startup,
               transaction_open: db.inTransaction,
               native_connections: native.length,
               remote_connections: remote.length,
