@@ -107,7 +107,7 @@ test('Cakto and Blackcat expose their own tutorials, credential fields and mobil
     if (name === 'Cakto') await expect(dialog.getByText(/V1 e V2 são aceitas/)).toBeVisible();
     else
       await expect(
-        dialog.getByText(/a alternativa documentada é informar a URL em postbackUrl/),
+        dialog.getByText(/a alternativa é informar a URL em postbackUrl/),
       ).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
