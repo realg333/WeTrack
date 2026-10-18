@@ -13,7 +13,7 @@ Em 18/10/2026, o painel foi ajustado para mostrar o ID Meta e identificar o modo
 | Pixel WeTrack             | `px_libras_4497992933816815`         |
 | Código de teste           | `TEST74475`                          |
 | Versão Graph API validada | `v26.0`                              |
-| Hospedagem WeTrack        | https://wetrack-psi.vercel.app   |
+| Hospedagem WeTrack        | https://wetrack-psi.vercel.app       |
 
 ## Validação realizada
 
