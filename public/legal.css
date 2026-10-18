@@ -1,0 +1,180 @@
+:root {
+  color-scheme: dark;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #e9edf6;
+  background: #0c1018;
+  line-height: 1.75;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: #8db0ff;
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+}
+a:hover {
+  color: #c1d4ff;
+}
+a:focus-visible {
+  outline: 2px solid #8db0ff;
+  outline-offset: 5px;
+}
+.shell {
+  width: min(100% - 48px, 860px);
+  margin-inline: auto;
+}
+header {
+  padding-block: 28px;
+  border-bottom: 1px solid #252c39;
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.brand {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  color: #f2f5fc;
+  text-decoration: none;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -1px;
+}
+.brand img {
+  width: 38px;
+  height: 38px;
+}
+.back {
+  font-size: 14px;
+}
+main {
+  padding-block: 56px 64px;
+}
+.eyebrow {
+  margin: 0 0 12px;
+  color: #8db0ff;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 0 0 12px;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.2;
+  letter-spacing: -1.5px;
+}
+.updated {
+  margin: 0 0 32px;
+  font-size: 13px;
+  color: #a4aec1;
+}
+.intro {
+  font-size: 18px;
+  color: #c4ccda;
+}
+h2 {
+  margin: 34px 0 12px;
+  font-size: 21px;
+  line-height: 1.4;
+}
+p,
+ul,
+ol {
+  margin: 12px 0;
+}
+li {
+  margin-block: 9px;
+}
+strong {
+  color: #f1f4fc;
+}
+.contact {
+  padding: 20px 24px;
+  background: #141c2a;
+  border: 1px solid #2a3d61;
+  border-radius: 12px;
+  margin-block: 28px;
+}
+.contact p {
+  margin-block: 4px;
+}
+.button {
+  display: inline-flex;
+  margin-top: 12px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: #3977f6;
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+}
+.button:hover {
+  color: white;
+  background: #2864df;
+}
+footer {
+  border-top: 1px solid #252c39;
+  padding-block: 26px 34px;
+  color: #a4aec1;
+  font-size: 13px;
+}
+footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+footer p {
+  margin: 16px 0 0;
+}
+@media (max-width: 520px) {
+  .shell {
+    width: calc(100% - 36px);
+  }
+  main {
+    padding-block: 36px 44px;
+  }
+  .header-inner {
+    gap: 14px;
+  }
+  .back {
+    font-size: 12px;
+  }
+  ul,
+  ol {
+    padding-left: 22px;
+  }
+  .contact {
+    padding: 17px;
+  }
+}
+@media print {
+  :root {
+    color-scheme: light;
+    color: #161616;
+    background: white;
+  }
+  a,
+  strong,
+  .intro,
+  .updated,
+  .eyebrow {
+    color: inherit;
+  }
+  .contact {
+    background: white;
+    border-color: #aaa;
+  }
+  .back,
+  .button {
+    display: none;
+  }
+}

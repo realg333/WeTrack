@@ -3046,6 +3046,19 @@ form > label > input {
   font-size: 8px;
   margin-bottom: 13px;
 }
+.login-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 28px;
+  font-size: 11px;
+}
+.login-legal a {
+  color: var(--muted);
+}
+.login-legal a:hover {
+  color: var(--blue);
+}
 @keyframes fade-in {
   from {
     opacity: 0;
