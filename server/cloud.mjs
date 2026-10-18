@@ -140,7 +140,49 @@ export function cloudApp() {
               'SELECT integration_id,provider FROM provider_connections ORDER BY provider';
             const native = db.prepare(sql).all(),
               remote = (await check.execute(sql)).rows;
+            const alternatives = [];
+            for (const prefix of ['', 'DATABASE_']) {
+              const url = process.env[`${prefix}TURSO_DATABASE_URL`],
+                authToken = process.env[`${prefix}TURSO_AUTH_TOKEN`];
+              if (
+                !url ||
+                !/^(libsql|https):\/\//.test(url) ||
+                !authToken ||
+                authToken === '[SENSITIVE]'
+              ) {
+                alternatives.push({ prefix, available: false });
+                continue;
+              }
+              const other = createClient({ url, authToken });
+              try {
+                const tables = (
+                  await other.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('provider_connections','meta_connections')",
+                  )
+                ).rows;
+                alternatives.push({
+                  prefix,
+                  available: true,
+                  fingerprint: createHash('sha256').update(url).digest('hex').slice(0, 16),
+                  providers: tables.some((t) => t.name === 'provider_connections')
+                    ? Number(
+                        (await other.execute('SELECT COUNT(*) AS n FROM provider_connections'))
+                          .rows[0].n,
+                      )
+                    : null,
+                  meta: tables.some((t) => t.name === 'meta_connections')
+                    ? Number(
+                        (await other.execute('SELECT COUNT(*) AS n FROM meta_connections')).rows[0]
+                          .n,
+                      )
+                    : null,
+                });
+              } finally {
+                other.close();
+              }
+            }
             return {
+              alternatives,
               database_fingerprint: createHash('sha256')
                 .update(credentials.url)
                 .digest('hex')
