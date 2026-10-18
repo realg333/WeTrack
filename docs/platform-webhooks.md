@@ -22,7 +22,7 @@ O código foi validado com transporte simulado e testes locais de navegador. Iss
 
 Para Blackcat, a integração valida a chave com GET `/sales/seller`. Não cria cobranças, pagamentos ou saques. A moeda padrão do contrato é BRL; esta versão não consolida outras moedas nem aplica conversão cambial.
 
-O catálogo Blackcat não documenta um webhook específico de reembolso, embora a consulta admita REFUNDED. A ação **Conferir últimas 20 transações** consulta as últimas 20 vendas já conhecidas daquela conexão e permite atualizar estornos. Não importa todo o histórico nem descobre transações desconhecidas.
+O painel Blackcat foi conferido em **Integrações → Webhooks → Adicionar** e oferece **Transação criada**, **Status alterado**, **Transação paga**, **Transação falhou** e **Transação estornada**. Selecione esses eventos em **Webhook Padrão**. A documentação pública lista apenas três eventos de transação; a WeTrack admite notificações `transaction.*`, mas sempre consulta a API antes de definir o estado financeiro, inclusive REFUNDED. Não aceita o valor ou o status financeiro declarados no webhook como comprovação. A ação **Conferir últimas 20 transações** também consulta as últimas 20 vendas já conhecidas daquela conexão e permite atualizar estornos. Não importa todo o histórico nem descobre transações desconhecidas.
 
 ## Atribuição
 

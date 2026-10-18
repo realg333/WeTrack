@@ -3,6 +3,10 @@ import { webhookSchema } from './domain.mjs';
 
 export const providerNames = { cakto: 'Cakto', hotmart: 'Hotmart', blackcat: 'Blackcat' };
 export const providerSchema = z.enum(['cakto', 'hotmart', 'blackcat']);
+// The dashboard also offers status-change/refund notifications. The event name
+// only schedules a lookup; the authenticated API decides the financial state.
+export const isBlackcatTransactionEvent = (event) =>
+  typeof event === 'string' && /^transaction\.[a-z_]{1,60}$/.test(event);
 const object = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const text = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const fail = (message) => Object.assign(new Error(message), { status: 400 });
@@ -182,7 +186,7 @@ export function normalizeHotmart(payload) {
 
 export function normalizeBlackcat(payload, verified) {
   const event = text(payload.event, 100);
-  if (!['transaction.created', 'transaction.paid', 'transaction.failed'].includes(event))
+  if (!isBlackcatTransactionEvent(event))
     return { event, ignored: 'Evento sem alteração de venda. Saques não são faturamento.' };
   const d = object(verified);
   if (!text(payload.transactionId, 120) || d.transactionId !== payload.transactionId)

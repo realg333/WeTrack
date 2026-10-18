@@ -6,6 +6,7 @@ import {
   normalizeCakto,
   normalizeHotmart,
   normalizeBlackcat,
+  isBlackcatTransactionEvent,
 } from './platform-adapters.mjs';
 import { recordSale } from './sales.mjs';
 
@@ -200,11 +201,7 @@ export function createPlatformService(db, key, meta, transport = fetch) {
       if (c.provider === 'cakto') normalized = normalizeCakto(payload);
       else if (c.provider === 'hotmart') normalized = normalizeHotmart(payload);
       else {
-        const supported = [
-          'transaction.created',
-          'transaction.paid',
-          'transaction.failed',
-        ].includes(payload.event);
+        const supported = isBlackcatTransactionEvent(payload.event);
         const customer = payload.customer || {};
         normalized = {
           event: typeof payload.event === 'string' ? payload.event.slice(0, 100) : '',

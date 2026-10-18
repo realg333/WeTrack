@@ -68,11 +68,11 @@ export const platformGuides = {
     credential: 'API Key da Blackcat',
     credentialHint:
       'Chave disponível no painel Blackcat. A WeTrack usa apenas consultas GET para validar transações; não cria cobranças nem saques.',
-    panel: 'https://docs.blackcatoficial.com/',
+    panel: 'https://app.blackcatoficial.com/secure/integracoes',
     steps: [
       'Gere a URL aqui e mantenha o modo de teste. Informe a API Key em Configuração; a WeTrack valida a chave com uma consulta aos dados do vendedor.',
-      'No painel Blackcat, abra a configuração de webhooks, cadastre uma conexão WeTrack e cole a URL gerada aqui. Use a área disponível na sua conta; a documentação pública não especifica os nomes dos menus. Para integrações diretas por API, a alternativa documentada é informar a URL em postbackUrl ao criar a venda.',
-      'Selecione transaction.created, transaction.paid e transaction.failed, ou os rótulos correspondentes de transação criada, paga e falha. Não é necessário assinar eventos de saque.',
+      'No painel Blackcat, abra Integrações → Webhooks → Adicionar. Escolha Webhook Padrão, cole a URL gerada aqui e use a descrição WeTrack. Para integrações diretas por API, a alternativa é informar a URL em postbackUrl ao criar a venda.',
+      'Selecione Transação criada, Status alterado, Transação paga, Transação falhou e Transação estornada. Esses rótulos foram conferidos no painel. Não é necessário assinar eventos de saque.',
       'Ao criar a transação, envie os campos utm_source, utm_medium, utm_campaign, utm_content e utm_term para a Blackcat. Os webhooks os devolvem no objeto utm.',
       'Para validar, use uma transação existente autorizada ou o recurso de teste disponível no seu checkout. A WeTrack precisa localizar esse transactionId na API Blackcat; um JSON com ID fictício não comprova uma venda.',
       'Confira Entregas aqui. Após a validação, desative o modo de teste e confirme. Uma URL configurada só em cobranças novas não recupera automaticamente as vendas antigas.',
@@ -80,7 +80,7 @@ export const platformGuides = {
     attribution:
       'A Blackcat é uma origem independente de vendas nesta operação. Na criação da cobrança pelo seu checkout, repasse as UTMs capturadas na página própria. A WeTrack lê o objeto utm do webhook. O postbackUrl não transfere as UTMs sozinho. O contrato de status não garante nome do produto; a lista identifica esses pedidos como Venda Blackcat.',
     notes:
-      'Os valores Blackcat são centavos e são convertidos para reais uma única vez. Usamos amount, não netAmount ou fees. A documentação não publica assinatura criptográfica para os webhooks: os headers X-Webhook-Source e X-Webhook-Event não provam a origem. Antes de registrar, a WeTrack consulta o status e o valor pelo transactionId usando a API Key. A consulta admite REFUNDED, mas o catálogo não documenta um evento de reembolso. Em Entregas, use Conferir últimas 20 transações para reconciliar as vendas já conhecidas, inclusive estornos. Isso não importa vendas desconhecidas nem todo o histórico. Não compartilhe a URL do webhook.',
+      'Os valores Blackcat são centavos e são convertidos para reais uma única vez. Usamos amount, não netAmount ou fees. A documentação não publica assinatura criptográfica para os webhooks: os headers X-Webhook-Source e X-Webhook-Event não provam a origem. Antes de registrar, a WeTrack consulta o status e o valor pelo transactionId usando a API Key, inclusive em notificações de alteração e estorno do painel. Como conferência adicional, use Conferir últimas 20 transações em Entregas para reconciliar vendas já conhecidas. Isso não importa vendas desconhecidas nem todo o histórico. Não compartilhe a URL do webhook.',
     sources: [
       ['Documentação completa, postbackUrl, status e eventos', 'https://docs.blackcatoficial.com/'],
     ],

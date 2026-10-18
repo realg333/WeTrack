@@ -359,6 +359,19 @@ test('Blackcat verifies status and cent values using only GET; forged paid field
   sale = f.db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id);
   assert.equal(sale.status, 'approved');
   assert.equal(sale.amount, 97.35);
+  f.objects.set(payload.transactionId, {
+    transactionId: payload.transactionId,
+    status: 'REFUNDED',
+    paymentMethod: 'PIX',
+    amount: 9735,
+  });
+  await f.send(b, { ...payload, event: 'transaction.status_changed', timestamp: stamp() });
+  await f.app.locals.platforms.drain();
+  sale = f.db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id);
+  assert.equal(sale.status, 'refunded');
+  await f.send(b, { ...payload, event: 'transaction.refunded', timestamp: stamp() });
+  await f.app.locals.platforms.drain();
+  assert.equal(f.db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id).status, 'refunded');
   const calls = f.calls.length;
   await f.send(b, { event: 'withdrawal.completed', amount: 50000 });
   await f.app.locals.platforms.drain();
