@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { createDatabase } from '../server/db.mjs';
 import { createRuleService } from '../server/rules.mjs';
 import { createMetaManagement } from '../server/management.mjs';
-import { conditionsMatch, ruleMetrics, ruleRange, scheduleDue } from '../server/rule-model.mjs';
+import {
+  conditionsMatch,
+  nextBudget,
+  ruleMetrics,
+  ruleRange,
+  scheduleDue,
+} from '../server/rule-model.mjs';
 import { dashboardReport } from '../server/reporting.mjs';
 import { createApp } from '../server/app.mjs';
 import Database from 'libsql';
@@ -433,4 +439,61 @@ test('rule HTTP endpoints require sessions, isolate operations and protect the s
   assert.equal((await call('/rules/preview', 'POST', f.rule())).status, 200);
   assert.equal((await call(`/rules/${id}?project=workspace`, 'DELETE')).status, 200);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM rule_configs').get().n, 0);
+});
+
+test('nextBudget applies percent, fixed amount, cap and the R$ 1 floor', () => {
+  const up = { mode: 'percent', amount: 20, limit: null };
+  assert.equal(nextBudget(50, up, 'increase_budget'), 60);
+  assert.equal(nextBudget(50, { ...up, limit: 55 }, 'increase_budget'), 55);
+  assert.equal(nextBudget(55, { ...up, limit: 55 }, 'increase_budget'), null);
+  assert.equal(nextBudget(50, { mode: 'percent', amount: 80, limit: null }, 'decrease_budget'), 10);
+  assert.equal(nextBudget(50, { mode: 'fixed', amount: 15, limit: 40 }, 'decrease_budget'), 40);
+  assert.equal(
+    nextBudget(50, { mode: 'percent', amount: 99, limit: null }, 'decrease_budget'),
+    null,
+  );
+  assert.equal(nextBudget(0, up, 'increase_budget'), null);
+});
+
+test('budget rules scale CBO within the cap and a killed campaign stays blocked', async (t) => {
+  const f = fixture(t);
+  const change = { mode: 'percent', amount: 20, limit: 55 };
+  f.db
+    .prepare('INSERT INTO rule_campaign_state VALUES(?,?,?,?)')
+    .run('bad', 'stop', 'prior', '2026-10-19T12:00:00Z');
+  const blocked = f.service.preview(
+    f.rule({ name: 'Escala', action: 'increase_budget', budget_change: change }),
+  );
+  assert.match(blocked.matches[0].blocked, /Corte definitivo/);
+  f.db.prepare('DELETE FROM rule_campaign_state').run();
+  f.service.save(f.rule({ name: 'Escala', action: 'increase_budget', budget_change: change }));
+  assert.deepEqual(await f.service.run('workspace'), { success: 1, failures: 0, error: null });
+  assert.deepEqual(f.writes, [{ external: '100', params: { daily_budget: 5500 } }]);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM rule_campaign_state').get().n, 0);
+  assert.equal(f.objects['200'].daily_budget, '5000');
+  f.advance(61);
+  await f.service.run('workspace');
+  assert.equal(f.writes.length, 1);
+  assert.equal(f.service.history('workspace')[0].status, 'skipped');
+  assert.throws(() =>
+    f.service.save(
+      f.rule({
+        name: 'Redução inválida',
+        action: 'decrease_budget',
+        budget_change: { mode: 'percent', amount: 100, limit: null },
+      }),
+    ),
+  );
+});
+
+test('alert push preference is stored and campaign rules do not keep it', (t) => {
+  const f = fixture(t);
+  const alert = f.service.save(f.rule({ action: 'alert', notify_push: false }));
+  const pause = f.service.save(f.rule({ name: 'Pausa sem push', notify_push: true }));
+  const read = (id) =>
+    JSON.parse(f.db.prepare('SELECT config FROM rule_configs WHERE rule_id=?').get(id).config);
+  assert.equal(read(alert.id).notify_push, false);
+  assert.equal(read(alert.id).action, 'alert');
+  assert.equal(read(pause.id).notify_push, false);
+  assert.equal(read(pause.id).budget_change, null);
 });

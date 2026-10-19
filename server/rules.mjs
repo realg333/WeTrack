@@ -4,6 +4,7 @@ import { visibleCampaigns } from './reporting.mjs';
 import {
   configuredRules,
   conditionsMatch,
+  nextBudget,
   ruleMetrics,
   ruleRange,
   ruleSchema,
@@ -12,6 +13,8 @@ import {
 } from './rule-model.mjs';
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
+const reais = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const budgetAction = (action) => action === 'increase_budget' || action === 'decrease_budget';
 export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
   function parse(input) {
     // Preserve the original alert API for existing clients.
@@ -19,7 +22,14 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
       const { metric, operator, threshold, ...rest } = input;
       input = { ...rest, conditions: [{ metric, operator, threshold }] };
     }
-    const rule = ruleSchema.parse(input);
+    const parsed = ruleSchema.safeParse(input);
+    if (!parsed.success)
+      throw fail(parsed.error.issues[0]?.message || 'Verifique os campos informados.');
+    const rule = {
+      ...parsed.data,
+      budget_change: budgetAction(parsed.data.action) ? parsed.data.budget_change : null,
+      notify_push: parsed.data.action === 'alert' && parsed.data.notify_push,
+    };
     const project = db.prepare('SELECT * FROM projects WHERE id=?').get(rule.project_id);
     if (!project) throw fail('Operação não encontrada.', 404);
     const campaigns = visibleCampaigns(db, rule.project_id);
@@ -87,6 +97,23 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     const state = db
       .prepare('SELECT * FROM rule_campaign_state WHERE campaign_id=?')
       .get(campaign.id);
+    if (budgetAction(rule.action) && state?.mode === 'stop')
+      return 'Corte definitivo: alteração automática de orçamento bloqueada.';
+    if (rule.action === 'increase_budget') {
+      const metricsOf = (candidate) => ruleMetrics(db, campaign, candidate.period, now);
+      if (
+        rules.some(
+          (r) =>
+            r.id !== rule.id &&
+            r.active &&
+            ['pause', 'stop', 'decrease_budget'].includes(r.action) &&
+            (!r.campaign_ids.length || r.campaign_ids.includes(campaign.id)) &&
+            scheduleDue(r, now) &&
+            conditionsMatch(r, metricsOf(r)),
+        )
+      )
+        return 'Uma regra de pausa, corte ou redução de orçamento ainda está atingida.';
+    }
     if (rule.action === 'resume') {
       if (!state || state.mode !== 'pause')
         return state?.mode === 'stop'
@@ -150,6 +177,10 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
             name: c.name,
             metrics: ruleMetrics(db, c, rule.period, now),
             blocked: blocker({ ...rule, id: ruleId }, c, protections, now),
+            budget: c.budget,
+            proposal: budgetAction(rule.action)
+              ? nextBudget(c.budget, rule.budget_change, rule.action)
+              : null,
           },
         ];
       }),
@@ -221,7 +252,14 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
       db.prepare(
         "UPDATE rule_runs SET status='error',message='Execução anterior interrompida. Confira o estado atual da campanha.' WHERE project_id=? AND status='running'",
       ).run(projectId);
-      const priority = { stop: 0, pause: 1, alert: 2, resume: 3 };
+      const priority = {
+        stop: 0,
+        pause: 1,
+        decrease_budget: 2,
+        alert: 3,
+        increase_budget: 4,
+        resume: 5,
+      };
       rules.sort((a, b) => priority[a.action] - priority[b.action]);
       for (const rule of rules) {
         if (!scheduleDue(rule, clock())) continue;
@@ -263,7 +301,9 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
               campaign,
               metrics,
               'success',
-              'Limites atingidos. Alerta registrado no painel.',
+              rule.notify_push
+                ? 'Limites atingidos. Alerta no painel; notificação push reservada para o app.'
+                : 'Limites atingidos. Alerta registrado no painel.',
             );
             success++;
             continue;
@@ -294,58 +334,79 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
               skip(rule, campaign, metrics, protection);
               continue;
             }
+            let updateInput = {
+              active: rule.action === 'resume',
+              expected_revision: before.revision,
+            };
+            let successMessage =
+              rule.action === 'resume'
+                ? 'Reativação confirmada na Meta.'
+                : rule.action === 'stop'
+                  ? 'Pausa confirmada na Meta. Reativação automática bloqueada.'
+                  : 'Pausa confirmada na Meta.';
+            if (budgetAction(rule.action)) {
+              // ponytail: orçamento só no nível da campanha (CBO). ABO exige regra por conjunto.
+              if (!before.can_edit_budget) {
+                skip(
+                  rule,
+                  campaign,
+                  metrics,
+                  'O orçamento desta campanha fica no conjunto. A regra só altera campanha com orçamento próprio.',
+                );
+                continue;
+              }
+              const next = nextBudget(before.budget, rule.budget_change, rule.action);
+              if (next == null) {
+                skip(
+                  rule,
+                  campaign,
+                  metrics,
+                  'O orçamento já está no limite desta regra ou ficaria abaixo de R$ 1,00.',
+                );
+                continue;
+              }
+              updateInput = { budget: next, expected_revision: before.revision };
+              successMessage = `Orçamento confirmado na Meta: ${reais(before.budget)} para ${reais(next)}.`;
+            }
             runId = log(rule, campaign, metrics, 'running', 'Enviando alteração à Meta.');
-            await meta.management.update(
-              projectId,
-              'campaigns',
-              campaign.id,
-              { active: rule.action === 'resume', expected_revision: before.revision },
-              {
-                automated: true,
-                guard: () => {
-                  const latest = configuredRules(db, projectId);
-                  const currentRule = latest.find((r) => r.id === rule.id);
-                  if (!currentRule?.active || JSON.stringify(currentRule) !== JSON.stringify(rule))
-                    throw fail(
-                      'A regra mudou durante a verificação. Aguarde o próximo ciclo.',
-                      409,
-                    );
-                  if (
-                    clock().getTime() >= lease ||
-                    db
-                      .prepare('SELECT lease_until FROM rule_worker_state WHERE project_id=?')
-                      .get(projectId)?.lease_until !== lease
-                  )
-                    throw fail('A reserva da execução expirou.', 409);
-                  if (
-                    !conditionsMatch(rule, ruleMetrics(db, campaign, rule.period, clock())) ||
-                    !scheduleDue(rule, clock())
-                  )
-                    throw fail(
-                      'As condições mudaram durante a verificação. Nenhuma alteração foi enviada.',
-                      409,
-                    );
-                  const blockedNow = blocker(rule, campaign, latest, clock(), {
-                    checkCooldown: false,
-                  });
-                  if (blockedNow) throw fail(blockedNow, 409);
-                },
+            await meta.management.update(projectId, 'campaigns', campaign.id, updateInput, {
+              automated: true,
+              guard: () => {
+                const latest = configuredRules(db, projectId);
+                const currentRule = latest.find((r) => r.id === rule.id);
+                if (!currentRule?.active || JSON.stringify(currentRule) !== JSON.stringify(rule))
+                  throw fail('A regra mudou durante a verificação. Aguarde o próximo ciclo.', 409);
+                if (
+                  clock().getTime() >= lease ||
+                  db
+                    .prepare('SELECT lease_until FROM rule_worker_state WHERE project_id=?')
+                    .get(projectId)?.lease_until !== lease
+                )
+                  throw fail('A reserva da execução expirou.', 409);
+                if (
+                  !conditionsMatch(rule, ruleMetrics(db, campaign, rule.period, clock())) ||
+                  !scheduleDue(rule, clock())
+                )
+                  throw fail(
+                    'As condições mudaram durante a verificação. Nenhuma alteração foi enviada.',
+                    409,
+                  );
+                const blockedNow = blocker(rule, campaign, latest, clock(), {
+                  checkCooldown: false,
+                });
+                if (blockedNow) throw fail(blockedNow, 409);
               },
-            );
+            });
             db.exec('BEGIN');
             try {
               if (rule.action === 'resume')
                 db.prepare('DELETE FROM rule_campaign_state WHERE campaign_id=?').run(campaign.id);
-              else
+              else if (rule.action === 'pause' || rule.action === 'stop')
                 db.prepare(
                   'INSERT INTO rule_campaign_state VALUES(?,?,?,?) ON CONFLICT(campaign_id) DO UPDATE SET mode=excluded.mode,rule_id=excluded.rule_id,changed_at=excluded.changed_at',
                 ).run(campaign.id, rule.action, rule.id, clock().toISOString());
               db.prepare("UPDATE rule_runs SET status='success',message=? WHERE id=?").run(
-                rule.action === 'resume'
-                  ? 'Reativação confirmada na Meta.'
-                  : rule.action === 'stop'
-                    ? 'Pausa confirmada na Meta. Reativação automática bloqueada.'
-                    : 'Pausa confirmada na Meta.',
+                successMessage,
                 runId,
               );
               db.exec('COMMIT');

@@ -83,3 +83,20 @@ test('resume template offers a Brasília schedule and an empty condition list', 
   await expect(dialog.locator('.rule-preview')).toBeVisible();
   await page.keyboard.press('Escape');
 });
+
+test('campaign rules choose an action and combine conditions in one sentence', async ({ page }) => {
+  await page.goto('/#rules');
+  await page.getByRole('button', { name: 'Nova regra', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('radio', { name: /Alerta no painel/ })).toBeChecked();
+  await dialog.getByRole('radio', { name: /Regra de campanha/ }).check();
+  await expect(dialog.getByRole('combobox', { name: 'Ação', exact: true })).toHaveValue('stop');
+  await dialog.getByRole('combobox', { name: 'Ação', exact: true }).selectOption('increase_budget');
+  await expect(dialog.getByLabel('Percentual', { exact: true })).toHaveValue('20');
+  await dialog.getByRole('button', { name: 'Adicionar outra condição' }).click();
+  await expect(dialog.locator('.rule-condition-row')).toHaveCount(2);
+  await expect(dialog.locator('.rule-sentence')).toContainText('Subir orçamento 20%');
+  await expect(dialog.locator('.rule-sentence')).toContainText('quando CPA');
+  await expect(dialog.locator('.rule-sentence')).toContainText('quando Investimento');
+  await page.keyboard.press('Escape');
+});

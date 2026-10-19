@@ -71,13 +71,15 @@ export type Rule = {
   threshold: number;
   active: number;
   matches: string[];
-  action: 'alert' | 'pause' | 'stop' | 'resume';
+  action: 'alert' | 'pause' | 'stop' | 'resume' | 'increase_budget' | 'decrease_budget';
   conditions: RuleCondition[];
   period: 'today' | 'yesterday' | '3d' | '7d' | '30d';
   campaign_ids: string[];
   min_spend: number;
   cooldown_minutes: number;
   schedule_time: string | null;
+  budget_change: { mode: 'percent' | 'fixed'; amount: number; limit: number | null } | null;
+  notify_push: boolean;
 };
 export type RuleCondition = { metric: string; operator: string; threshold: number };
 export type Dashboard = {

@@ -1971,6 +1971,68 @@ kbd {
   line-height: 1.7;
   margin-top: 6px;
 }
+.rule-kind {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  min-width: 0;
+}
+.rule-kind legend {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.rule-kind label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 0;
+}
+.rule-kind label:has(input:checked) {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.rule-kind strong,
+.rule-kind small {
+  display: block;
+}
+.rule-kind small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.rule-kind input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--blue);
+  flex-shrink: 0;
+}
+.rule-and {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--amber);
+}
+.rule-sentence {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.rule-card .rule-sentence {
+  margin: 8px 0 12px;
+  color: var(--text);
+  font-size: 13px;
+}
 .rule-editor .rule-fieldset {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2064,6 +2126,9 @@ kbd {
     flex-direction: column;
     align-items: flex-start;
     padding: 18px;
+  }
+  .rule-kind {
+    grid-template-columns: 1fr;
   }
   .rule-condition-row {
     grid-template-columns: minmax(0, 1fr) 32px;

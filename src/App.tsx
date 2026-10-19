@@ -1371,16 +1371,19 @@ function NotificationList({ data, onSelect }: { data: Dashboard; onSelect: (s: S
   return (
     <div className="notification-list">
       {data.rules
-        .filter((r) => r.matches.length)
+        .filter((r) => r.action === 'alert' && r.matches.length)
         .map((r) => (
           <div className="notification-item" key={r.id}>
             <span className="notification-icon amber">
-              <Zap size={17} />
+              <Bell size={17} />
             </span>
             <div>
               <strong>{r.name}</strong>
-              <p>{r.matches.length} campanha(s) atingiram as condições no período da regra.</p>
-              <small>Alerta de indicador</small>
+              <p>{r.matches.join(', ')}</p>
+              <small>
+                Alerta no painel
+                {r.notify_push ? ' · push reservado para o app' : ''}
+              </small>
             </div>
           </div>
         ))}

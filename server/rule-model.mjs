@@ -28,8 +28,20 @@ export const ruleSchema = z
   .object({
     project_id: z.string().min(1),
     name: z.string().trim().min(3).max(100),
-    action: z.enum(['alert', 'pause', 'stop', 'resume']).default('alert'),
-    conditions: z.array(conditionSchema).max(5).default([]),
+    action: z
+      .enum(['alert', 'pause', 'stop', 'resume', 'increase_budget', 'decrease_budget'])
+      .default('alert'),
+    conditions: z.array(conditionSchema).max(8).default([]),
+    budget_change: z
+      .object({
+        mode: z.enum(['percent', 'fixed']),
+        amount: z.number().finite().positive().max(1000000),
+        limit: z.number().finite().positive().max(1000000).nullable(),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    notify_push: z.boolean().default(true),
     period: z.enum(['today', 'yesterday', '3d', '7d', '30d']).default('today'),
     campaign_ids: z.array(z.string().min(1).max(100)).max(100).default([]),
     min_spend: z.number().finite().min(0).max(1000000).default(0),
@@ -47,6 +59,35 @@ export const ruleSchema = z
       ctx.addIssue({ code: 'custom', message: 'Inclua uma condição ou um horário.' });
     if (r.action === 'alert' && !r.conditions.length)
       ctx.addIssue({ code: 'custom', message: 'Alertas precisam de uma condição.' });
+    const scales = r.action === 'increase_budget' || r.action === 'decrease_budget';
+    if (scales && !r.budget_change)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['budget_change'],
+        message: 'Informe quanto o orçamento deve mudar.',
+      });
+    if (scales && r.budget_change?.mode === 'percent') {
+      const max = r.action === 'decrease_budget' ? 99 : 300;
+      if (r.budget_change.amount < 1 || r.budget_change.amount > max)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['budget_change', 'amount'],
+          message:
+            r.action === 'decrease_budget'
+              ? 'A redução percentual fica entre 1% e 99%.'
+              : 'O aumento percentual fica entre 1% e 300%.',
+        });
+    }
+    if (r.budget_change)
+      for (const key of ['amount', 'limit']) {
+        const value = r.budget_change[key];
+        if (value != null && Math.abs(value * 100 - Math.round(value * 100)) > 0.000001)
+          ctx.addIssue({
+            code: 'custom',
+            path: ['budget_change', key],
+            message: 'Use no máximo duas casas decimais.',
+          });
+      }
   });
 
 export function hydrateRule(row) {
@@ -61,6 +102,8 @@ export function hydrateRule(row) {
     min_spend: 0,
     cooldown_minutes: 60,
     schedule_time: null,
+    budget_change: null,
+    notify_push: true,
     ...config,
   };
 }
@@ -112,6 +155,23 @@ export function conditionsMatch(rule, metrics) {
     })
   );
 }
+export function nextBudget(current, change, action) {
+  if (!change || !(current > 0)) return null;
+  const raw =
+    change.mode === 'percent'
+      ? current * (action === 'increase_budget' ? 1 + change.amount / 100 : 1 - change.amount / 100)
+      : action === 'increase_budget'
+        ? current + change.amount
+        : current - change.amount;
+  let next = money(raw);
+  if (change.limit != null)
+    next = money(
+      action === 'increase_budget' ? Math.min(next, change.limit) : Math.max(next, change.limit),
+    );
+  if (next < 1 || next === current) return null;
+  if (action === 'increase_budget' ? next < current : next > current) return null;
+  return next;
+}
 export function scheduleDue(rule, clock) {
   if (!rule.schedule_time) return true;
   const hour = new Intl.DateTimeFormat('en-GB', {
@@ -135,6 +195,8 @@ export function configuredRules(db, projectId) {
 export function ruleTargets(db, rule, campaign) {
   if (rule.campaign_ids.length && !rule.campaign_ids.includes(campaign.id)) return false;
   if (rule.action === 'resume') return !campaign.active;
+  if (rule.action === 'increase_budget' || rule.action === 'decrease_budget')
+    return Boolean(campaign.active);
   return (
     Boolean(campaign.active) ||
     (rule.action === 'stop' &&

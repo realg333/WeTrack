@@ -8,6 +8,8 @@ import {
   Play,
   ShieldCheck,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Zap,
 } from 'lucide-react';
 import { Badge, Empty, Modal, Spinner, Toggle } from './components';
@@ -34,10 +36,19 @@ const operators: Record<string, string> = {
   eq: 'Igual a',
 };
 const actions = {
-  alert: 'Alertar',
+  alert: 'Alerta no painel',
+  stop: 'Matar campanha',
   pause: 'Pausar campanha',
-  stop: 'Corte definitivo',
+  increase_budget: 'Subir orçamento',
+  decrease_budget: 'Baixar orçamento',
   resume: 'Religar campanha',
+};
+const campaignActions = {
+  stop: actions.stop,
+  pause: actions.pause,
+  increase_budget: actions.increase_budget,
+  decrease_budget: actions.decrease_budget,
+  resume: actions.resume,
 };
 const periods = {
   today: 'Hoje',
@@ -56,6 +67,8 @@ type Draft = Pick<
   | 'min_spend'
   | 'cooldown_minutes'
   | 'schedule_time'
+  | 'budget_change'
+  | 'notify_push'
 > & { active: boolean };
 type Run = {
   id: string;
@@ -86,6 +99,8 @@ type Preview = {
     name: string;
     blocked: string | null;
     metrics: Record<string, number | null>;
+    budget: number;
+    proposal: number | null;
   }[];
 };
 const blank = (): Draft => ({
@@ -97,8 +112,21 @@ const blank = (): Draft => ({
   min_spend: 0,
   cooldown_minutes: 60,
   schedule_time: null,
+  budget_change: null,
+  notify_push: true,
   active: true,
 });
+function budgetFor(action: Draft['action'], current: Draft['budget_change']) {
+  if (action !== 'increase_budget' && action !== 'decrease_budget') return null;
+  const next = current || {
+    mode: 'percent' as const,
+    amount: action === 'decrease_budget' ? 80 : 20,
+    limit: null,
+  };
+  return next.mode === 'percent' && action === 'decrease_budget' && next.amount > 99
+    ? { ...next, amount: 80 }
+    : next;
+}
 const templates: Record<string, { label: string; draft: Partial<Draft> }> = {
   custom: { label: 'Personalizada', draft: {} },
   stop: {
@@ -159,18 +187,97 @@ const templates: Record<string, { label: string; draft: Partial<Draft> }> = {
       name: 'Avisar sobre campanhas para escalar',
       action: 'alert',
       min_spend: 100,
+      notify_push: true,
       conditions: [
         { metric: 'roas', operator: 'gte', threshold: 3 },
         { metric: 'sales', operator: 'gte', threshold: 5 },
       ],
     },
   },
+  kill: {
+    label: 'Matar CPA acima do limite',
+    draft: {
+      name: 'Matar CPA alto com gasto mínimo',
+      action: 'stop',
+      conditions: [
+        { metric: 'cpa', operator: 'gt', threshold: 17 },
+        { metric: 'spend', operator: 'gt', threshold: 50 },
+      ],
+    },
+  },
+  scale: {
+    label: 'Subir orçamento do que vende',
+    draft: {
+      name: 'Subir 20% com CPA baixo',
+      action: 'increase_budget',
+      min_spend: 50,
+      budget_change: { mode: 'percent', amount: 20, limit: null },
+      conditions: [
+        { metric: 'cpa', operator: 'lt', threshold: 17 },
+        { metric: 'sales', operator: 'gte', threshold: 3 },
+      ],
+    },
+  },
+  night: {
+    label: 'Baixar orçamento à noite',
+    draft: {
+      name: 'Baixar 80% às 23h',
+      action: 'decrease_budget',
+      schedule_time: '23:00',
+      budget_change: { mode: 'percent', amount: 80, limit: null },
+      conditions: [],
+    },
+  },
+};
+const explanations: Record<Draft['action'], string> = {
+  alert:
+    'O alerta fica no sino do painel enquanto as condições forem verdadeiras. Com o push marcado, o app web e o iOS usam o mesmo registro quando estiverem publicados.',
+  stop: 'Pausa na Meta e bloqueia qualquer reativação automática. A campanha continua disponível para ativação manual. Desativar ou excluir a regra não religa a campanha.',
+  pause:
+    'Pausa campanhas ativas na Meta. Outra regra pode religá-las depois do intervalo de segurança.',
+  resume:
+    'Religa somente campanhas pausadas pelas regras. Pausas manuais e campanhas mortas ficam protegidas. Uma condição de pausa ainda atingida impede a reativação.',
+  increase_budget:
+    'Aumenta o orçamento da própria campanha na Meta. Conjunto com orçamento separado não entra. O teto impede a escala infinita. Uma regra de pausa, corte ou redução ainda atingida bloqueia o aumento.',
+  decrease_budget:
+    'Reduz o orçamento da própria campanha na Meta. O piso segura o valor. Abaixo de R$ 1,00 a alteração não é enviada.',
 };
 function valueText(c: RuleCondition) {
   if (['sales', 'clicks', 'impressions'].includes(c.metric)) return String(c.threshold);
   if (c.metric === 'roas') return `${decimal(c.threshold)}x`;
   if (c.metric === 'ctr') return `${decimal(c.threshold)}%`;
   return brl(c.threshold);
+}
+function ruleSentence(draft: Draft) {
+  const change = draft.budget_change;
+  const budget =
+    change && (draft.action === 'increase_budget' || draft.action === 'decrease_budget')
+      ? ` ${change.mode === 'percent' ? `${change.amount}%` : brl(change.amount)}`
+      : '';
+  const when = draft.conditions.length
+    ? draft.conditions
+        .map(
+          (c, i) =>
+            `${i ? 'e ' : ''}quando ${metrics[c.metric]} for ${operators[c.operator].toLowerCase()} ${valueText(c)}`,
+        )
+        .join(' ')
+    : draft.schedule_time
+      ? `às ${draft.schedule_time}`
+      : 'quando o horário chegar';
+  return `${actions[draft.action]}${budget} ${when}.`;
+}
+function budgetLine(rule: Rule) {
+  const change = rule.budget_change;
+  if (!change || (rule.action !== 'increase_budget' && rule.action !== 'decrease_budget'))
+    return null;
+  const amount = change.mode === 'percent' ? `${change.amount}%` : brl(change.amount);
+  const cap =
+    change.limit == null
+      ? ''
+      : rule.action === 'increase_budget'
+        ? ` · teto ${brl(change.limit)}`
+        : ` · piso ${brl(change.limit)}`;
+  return `${rule.action === 'increase_budget' ? 'Sobe' : 'Baixa'} ${amount}${cap}`;
 }
 export default function RulesPage({
   project,
@@ -300,8 +407,8 @@ export default function RulesPage({
       <div className="inline-notice">
         <ShieldCheck size={18} />
         <span>
-          Condições combinadas por campanha. Gastos da Meta e vendas aprovadas atribuídas na
-          WeTrack, no período de cada regra. Cortes têm prioridade sobre reativações.
+          Alerta avisa no painel (e no app, quando publicado). Regra de campanha mata, pausa, religa
+          ou mexe no orçamento. Várias condições valem juntas. Corte e redução vencem o aumento.
         </span>
       </div>
       <section className="panel rules-worker">
@@ -366,7 +473,15 @@ export default function RulesPage({
           <section className="panel rule-card" key={r.id}>
             <div className="rule-top">
               <span className="rule-icon">
-                {r.action === 'alert' ? <Bell size={20} /> : <Zap size={20} />}
+                {r.action === 'alert' ? (
+                  <Bell size={20} />
+                ) : r.action === 'increase_budget' ? (
+                  <TrendingUp size={20} />
+                ) : r.action === 'decrease_budget' ? (
+                  <TrendingDown size={20} />
+                ) : (
+                  <Zap size={20} />
+                )}
               </span>
               <Toggle
                 label={`Ativar ${r.name}`}
@@ -389,21 +504,28 @@ export default function RulesPage({
                 }}
               />
             </div>
-            <Badge tone={!r.active ? 'neutral' : r.action === 'resume' ? 'green' : 'amber'}>
+            <Badge
+              tone={
+                !r.active
+                  ? 'neutral'
+                  : r.action === 'resume' || r.action === 'increase_budget'
+                    ? 'green'
+                    : r.action === 'alert'
+                      ? 'blue'
+                      : 'amber'
+              }
+            >
               {actions[r.action]} · {r.active ? 'Ativa' : 'Desativada'}
             </Badge>
             <h3>{r.name}</h3>
-            <ul className="rule-conditions">
-              {r.conditions.map((c, i) => (
-                <li key={i}>
-                  {i > 0 && <small>E </small>}
-                  {metrics[c.metric]}{' '}
-                  <b>
-                    {operators[c.operator].toLowerCase()} {valueText(c)}
-                  </b>
-                </li>
-              ))}
-            </ul>
+            <p className="rule-sentence">{ruleSentence({ ...r, active: Boolean(r.active) })}</p>
+            {budgetLine(r) && <p>{budgetLine(r)}</p>}
+            {r.action === 'alert' && (
+              <p>
+                Sino do painel
+                {r.notify_push ? ' · push reservado para o app' : ' · sem push no app'}
+              </p>
+            )}
             <p>
               {periods[r.period]} ·{' '}
               {r.campaign_ids.length
@@ -416,8 +538,8 @@ export default function RulesPage({
             </p>
             {r.action === 'stop' && (
               <p>
-                Bloqueia a reativação por outras regras. Para retomar, ative manualmente na gestão
-                Meta.
+                Mata a campanha e bloqueia a reativação por outras regras. Para retomar, ative
+                manualmente na gestão Meta.
               </p>
             )}
             <div className="rule-result">
@@ -445,6 +567,8 @@ export default function RulesPage({
                     min_spend: r.min_spend,
                     cooldown_minutes: r.cooldown_minutes,
                     schedule_time: r.schedule_time,
+                    budget_change: r.budget_change,
+                    notify_push: r.notify_push,
                     active: Boolean(r.active),
                   });
                   setScope(r.campaign_ids.length ? 'selected' : 'all');
@@ -603,22 +727,74 @@ export default function RulesPage({
                 placeholder="Ex.: Cortar gasto alto com poucas vendas"
               />
             </label>
-            <div className="form-grid">
+            <fieldset className="rule-kind">
+              <legend>O que esta regra faz</legend>
               <label>
-                Ação
-                <select
-                  value={draft.action}
-                  onChange={(e) =>
-                    change({ action: e.target.value as Draft['action'], active: false })
+                <input
+                  type="radio"
+                  name="rule-kind"
+                  value="alert"
+                  checked={draft.action === 'alert'}
+                  onChange={() =>
+                    change({
+                      action: 'alert',
+                      budget_change: null,
+                      notify_push: true,
+                      active: false,
+                    })
                   }
-                >
-                  {Object.entries(actions).map(([v, label]) => (
-                    <option key={v} value={v}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                />
+                <span>
+                  <strong>Alerta no painel</strong>
+                  <small>Avisa no sino. O app recebe a mesma notificação.</small>
+                </span>
               </label>
+              <label>
+                <input
+                  type="radio"
+                  name="rule-kind"
+                  value="campaign"
+                  checked={draft.action !== 'alert'}
+                  onChange={() => {
+                    if (draft.action !== 'alert') return;
+                    change({
+                      action: 'stop',
+                      budget_change: null,
+                      notify_push: false,
+                      active: false,
+                    });
+                  }}
+                />
+                <span>
+                  <strong>Regra de campanha</strong>
+                  <small>Mata, pausa, religa ou muda o orçamento na Meta.</small>
+                </span>
+              </label>
+            </fieldset>
+            <div className="form-grid">
+              {draft.action !== 'alert' && (
+                <label>
+                  Ação
+                  <select
+                    value={draft.action}
+                    onChange={(e) => {
+                      const action = e.target.value as Draft['action'];
+                      change({
+                        action,
+                        budget_change: budgetFor(action, draft.budget_change),
+                        notify_push: false,
+                        active: false,
+                      });
+                    }}
+                  >
+                    {Object.entries(campaignActions).map(([v, label]) => (
+                      <option key={v} value={v}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
                 Período de análise
                 <select
@@ -633,94 +809,160 @@ export default function RulesPage({
                 </select>
               </label>
             </div>
-            <div className="rule-explanation">
-              {draft.action === 'alert'
-                ? 'Registra um alerta no painel quando as condições forem atingidas.'
-                : draft.action === 'stop'
-                  ? 'Pausa na Meta e bloqueia qualquer reativação automática. A campanha continua disponível para ativação manual. Desativar ou excluir a regra não religa a campanha.'
-                  : draft.action === 'pause'
-                    ? 'Pausa campanhas ativas na Meta. Outra regra poderá religá-las depois do intervalo de segurança.'
-                    : 'Religa somente campanhas pausadas pelas regras. Pausas manuais e cortes definitivos ficam protegidos. Uma condição de pausa ainda atingida impede a reativação.'}
-            </div>
+            <div className="rule-explanation">{explanations[draft.action]}</div>
+            {draft.budget_change && (
+              <div className="form-grid">
+                <label>
+                  Como mudar o orçamento
+                  <select
+                    value={draft.budget_change.mode}
+                    onChange={(e) =>
+                      change({
+                        budget_change: {
+                          ...draft.budget_change!,
+                          mode: e.target.value as 'percent' | 'fixed',
+                          amount:
+                            e.target.value === 'percent' &&
+                            draft.action === 'decrease_budget' &&
+                            draft.budget_change!.amount > 99
+                              ? 80
+                              : draft.budget_change!.amount,
+                        },
+                      })
+                    }
+                  >
+                    <option value="percent">Percentual</option>
+                    <option value="fixed">Valor fixo (R$)</option>
+                  </select>
+                </label>
+                <label>
+                  {draft.budget_change.mode === 'percent' ? 'Percentual' : 'Valor (R$)'}
+                  <input
+                    type="number"
+                    required
+                    min={draft.budget_change.mode === 'percent' ? 1 : 0.01}
+                    max={
+                      draft.budget_change.mode === 'percent'
+                        ? draft.action === 'decrease_budget'
+                          ? 99
+                          : 300
+                        : 1000000
+                    }
+                    step={draft.budget_change.mode === 'percent' ? 1 : 0.01}
+                    value={draft.budget_change.amount}
+                    onChange={(e) =>
+                      change({
+                        budget_change: { ...draft.budget_change!, amount: Number(e.target.value) },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  {draft.action === 'increase_budget'
+                    ? 'Teto do orçamento (R$, opcional)'
+                    : 'Piso do orçamento (R$, opcional)'}
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000000"
+                    step="0.01"
+                    value={draft.budget_change.limit ?? ''}
+                    onChange={(e) =>
+                      change({
+                        budget_change: {
+                          ...draft.budget_change!,
+                          limit: e.target.value === '' ? null : Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            )}
             <fieldset className="rule-fieldset">
               <legend>Quando todas as condições forem verdadeiras</legend>
               {draft.conditions.map((c, i) => (
-                <div className="rule-condition-row" key={i}>
-                  <label>
-                    Indicador{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
-                    <select
-                      value={c.metric}
-                      onChange={(e) =>
-                        editCondition(i, {
-                          metric: e.target.value,
-                          threshold: ['sales', 'clicks', 'impressions'].includes(e.target.value)
-                            ? Math.max(0, Math.round(c.threshold))
-                            : c.threshold,
-                        })
+                <div key={i}>
+                  {i > 0 && <p className="rule-and">E</p>}
+                  <div className="rule-condition-row">
+                    <label>
+                      Quando{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
+                      <select
+                        value={c.metric}
+                        onChange={(e) =>
+                          editCondition(i, {
+                            metric: e.target.value,
+                            threshold: ['sales', 'clicks', 'impressions'].includes(e.target.value)
+                              ? Math.max(0, Math.round(c.threshold))
+                              : c.threshold,
+                          })
+                        }
+                      >
+                        {Object.entries(metrics).map(([v, label]) => (
+                          <option key={v} value={v}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Comparação{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
+                      <select
+                        value={c.operator}
+                        onChange={(e) => editCondition(i, { operator: e.target.value })}
+                      >
+                        {Object.entries(operators).map(([v, label]) => (
+                          <option key={v} value={v}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Valor limite{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
+                      <input
+                        type="number"
+                        required
+                        min={c.metric === 'profit' ? -10000000 : 0}
+                        max="10000000"
+                        step={['sales', 'clicks', 'impressions'].includes(c.metric) ? '1' : '0.01'}
+                        value={c.threshold}
+                        onChange={(e) => editCondition(i, { threshold: Number(e.target.value) })}
+                      />
+                    </label>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={`Remover condição ${i + 1}`}
+                      disabled={draft.conditions.length === 1 && !draft.schedule_time}
+                      onClick={() =>
+                        change({ conditions: draft.conditions.filter((_, n) => n !== i) })
                       }
                     >
-                      {Object.entries(metrics).map(([v, label]) => (
-                        <option key={v} value={v}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Condição{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
-                    <select
-                      value={c.operator}
-                      onChange={(e) => editCondition(i, { operator: e.target.value })}
-                    >
-                      {Object.entries(operators).map(([v, label]) => (
-                        <option key={v} value={v}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Valor limite{draft.conditions.length > 1 ? ` ${i + 1}` : ''}
-                    <input
-                      type="number"
-                      required
-                      min={c.metric === 'profit' ? -10000000 : 0}
-                      max="10000000"
-                      step={['sales', 'clicks', 'impressions'].includes(c.metric) ? '1' : '0.01'}
-                      value={c.threshold}
-                      onChange={(e) => editCondition(i, { threshold: Number(e.target.value) })}
-                    />
-                  </label>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    aria-label={`Remover condição ${i + 1}`}
-                    disabled={draft.conditions.length === 1 && !draft.schedule_time}
-                    onClick={() =>
-                      change({ conditions: draft.conditions.filter((_, n) => n !== i) })
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
-              {draft.conditions.length < 5 && (
+              {draft.conditions.length < 8 && (
                 <button
                   type="button"
                   className="text-button"
-                  onClick={() =>
-                    change({
-                      conditions: [
-                        ...draft.conditions,
-                        { metric: 'sales', operator: 'lt', threshold: 2 },
-                      ],
-                    })
-                  }
+                  onClick={() => {
+                    const used = new Set(draft.conditions.map((c) => c.metric));
+                    const next = !used.has('spend')
+                      ? { metric: 'spend', operator: 'gt', threshold: 50 }
+                      : !used.has('sales')
+                        ? { metric: 'sales', operator: 'lt', threshold: 2 }
+                        : { metric: 'roas', operator: 'lt', threshold: 1 };
+                    change({ conditions: [...draft.conditions, next] });
+                  }}
                 >
                   <CirclePlus size={15} />
-                  Adicionar condição (E)
+                  Adicionar outra condição
                 </button>
               )}
+              <p className="rule-sentence">{ruleSentence(draft)}</p>
               <p>
                 CPA exige ao menos uma venda. ROAS exige gasto. Para campanhas sem vendas, combine
                 investimento com vendas iguais a zero.
@@ -762,9 +1004,11 @@ export default function RulesPage({
             </label>
             {draft.schedule_time && (
               <p className="rule-help">
-                Executa na primeira verificação dentro de 1 hora após esse horário. Reativação
-                agendada ocorre no máximo uma vez por campanha ao dia. Todas as condições continuam
-                valendo.
+                Executa na primeira verificação dentro de 1 hora após esse horário.{' '}
+                {draft.action === 'resume'
+                  ? 'Reativação agendada ocorre no máximo uma vez por campanha ao dia.'
+                  : 'Com intervalo de 60 min, a ação ocorre uma vez nessa janela.'}{' '}
+                Todas as condições continuam valendo.
               </p>
             )}
             <label>
@@ -812,8 +1056,18 @@ export default function RulesPage({
                 onChange={(e) => change({ active: e.target.checked })}
               />
               Ativar ao salvar
-              {draft.action !== 'alert' && ' e permitir alterações de veiculação na Meta'}
+              {draft.action !== 'alert' && ' e permitir a alteração na Meta'}
             </label>
+            {draft.action === 'alert' && (
+              <label className="rule-activate">
+                <input
+                  type="checkbox"
+                  checked={draft.notify_push}
+                  onChange={(e) => change({ notify_push: e.target.checked })}
+                />
+                Reservar notificação push para o app
+              </label>
+            )}
             <button
               className="button secondary"
               type="button"
@@ -845,6 +1099,12 @@ export default function RulesPage({
                       {brl(c.metrics.spend || 0)} · {c.metrics.sales || 0} venda(s)
                     </span>
                     {c.blocked && <small>{c.blocked}</small>}
+                    {c.proposal != null && (
+                      <small>
+                        Orçamento estimado {brl(c.budget)} para {brl(c.proposal)}. A execução usa o
+                        valor ao vivo na Meta.
+                      </small>
+                    )}
                   </div>
                 ))}
                 <small>
