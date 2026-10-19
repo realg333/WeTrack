@@ -25,6 +25,7 @@ export const cloudTables = [
   'ad_insights',
   'campaign_funnel',
   'event_details',
+  'event_engagement',
   'sale_attribution',
   'sale_tracking',
   'manual_sale_attribution',

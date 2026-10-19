@@ -162,7 +162,8 @@ export default function IntegrationsPage({
   const snippet = (pixel: Pixel) => {
     let checkout = '';
     try {
-      checkout = ` data-checkout-origin="${new URL(pixel.checkout_url).origin}"`;
+      const url = new URL(pixel.checkout_url);
+      checkout = ` data-checkout-origin="${url.origin}" data-checkout-url="${url.origin + url.pathname}"`;
     } catch {
       /* Optional checkout. */
     }
@@ -1727,8 +1728,10 @@ export default function IntegrationsPage({
               <pre>{`window.WeTrack.track('InitiateCheckout');\nwindow.WeTrack.track('Purchase');`}</pre>
             </div>
             <p>
-              O pixel envia PageView automaticamente. Eventos Purchase do navegador não geram
-              faturamento: apenas vendas confirmadas pelo webhook entram na receita.
+              O pixel registra páginas, seções, rolagem, tempo visível e ativo estimado, saídas e
+              retornos. Cliques de checkout e a volta ao site aparecem na jornada do visitante. Para
+              acompanhar o interior de um checkout externo, é necessário instalar o pixel ou usar a
+              integração da plataforma. Apenas vendas confirmadas pelo webhook entram na receita.
             </p>
             <div className="inline-notice">
               <CircleHelp size={16} />O envio CAPI é opcional: configure o pixel Meta, associe-o ao

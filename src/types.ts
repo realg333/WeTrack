@@ -124,6 +124,13 @@ export type Journey = {
     utm_campaign: string;
     session_id: string | null;
     created_at: string;
+    occurred_at?: string;
+    page_view_id?: string | null;
+    duration_ms?: number | null;
+    active_ms?: number | null;
+    scroll_depth?: number | null;
+    away_ms?: number | null;
+    reason?: string | null;
   }[];
   sales: Sale[];
 };

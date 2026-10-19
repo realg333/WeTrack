@@ -32,6 +32,8 @@ export function createDatabase(
     CREATE TABLE IF NOT EXISTS ad_insights (ad_id TEXT REFERENCES ads(id), day TEXT NOT NULL, amount REAL NOT NULL, impressions INTEGER DEFAULT 0, clicks INTEGER DEFAULT 0, PRIMARY KEY(ad_id,day));
     CREATE TABLE IF NOT EXISTS campaign_funnel (campaign_id TEXT REFERENCES campaigns(id), day TEXT NOT NULL, link_clicks INTEGER DEFAULT 0, landing_views INTEGER DEFAULT 0, checkouts INTEGER DEFAULT 0, meta_purchases INTEGER DEFAULT 0, PRIMARY KEY(campaign_id,day));
     CREATE TABLE IF NOT EXISTS event_details (event_id TEXT PRIMARY KEY REFERENCES events(id), session_id TEXT, page_title TEXT, referrer TEXT, section TEXT, target_url TEXT, utm_medium TEXT, utm_content TEXT, utm_term TEXT);
+    CREATE TABLE IF NOT EXISTS event_engagement (event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE, page_view_id TEXT, duration_ms INTEGER, active_ms INTEGER, scroll_depth INTEGER, reason TEXT, away_ms INTEGER, occurred_at TEXT);
+    CREATE INDEX IF NOT EXISTS engagement_page_view ON event_engagement(page_view_id);
     CREATE TABLE IF NOT EXISTS sale_attribution (sale_id TEXT PRIMARY KEY REFERENCES sales(id), visitor_id TEXT, adset_id TEXT, ad_id TEXT);
     CREATE TABLE IF NOT EXISTS sale_tracking (sale_id TEXT PRIMARY KEY REFERENCES sales(id), utm_term TEXT, adset_reference TEXT, ad_reference TEXT);
     CREATE TABLE IF NOT EXISTS manual_sale_attribution (sale_id TEXT PRIMARY KEY REFERENCES sales(id), updated_at TEXT NOT NULL);

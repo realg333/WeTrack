@@ -18,8 +18,20 @@ const labels: Record<string, string> = {
   ViewContent: 'Visualizou conteúdo',
   SectionView: 'Visualizou uma seção',
   Click: 'Clicou em um link',
-  InitiateCheckout: 'Iniciou checkout',
+  InitiateCheckout: 'Clicou para iniciar checkout (IC)',
   Purchase: 'Evento Purchase do navegador',
+  PageExit: 'Saiu da página',
+  PageReturn: 'Voltou à página/aba',
+  CheckoutReturn: 'Voltou após clique no checkout',
+  ScrollDepth: 'Rolou a página',
+};
+const durationLabel = (ms: number) => {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60
+    ? `${minutes}min ${seconds % 60}s`
+    : `${Math.floor(minutes / 60)}h ${minutes % 60}min`;
 };
 const pathLabel = (url: string) => {
   try {
@@ -122,7 +134,7 @@ export default function VisitorsPage({
         <div className="panel-heading">
           <div>
             <h2>Jornada dos visitantes</h2>
-            <p>Veja as páginas, seções e cliques de cada visitante anônimo</p>
+            <p>Veja o caminho, o tempo na página, a rolagem e os retornos de cada visitante</p>
           </div>
           <div className="segmented small">
             <button
@@ -278,8 +290,9 @@ export default function VisitorsPage({
         )}
         <p className="panel-footnote">
           O histórico depende do pixel em cada site. Um clique para o checkout registra intenção; a
-          venda é confirmada pelo webhook. Bloqueios do navegador e troca de dispositivo podem
-          separar visitantes.
+          volta após esse clique é identificada no seu site. O tempo ativo é estimado e pausa após
+          60 segundos sem interação ou com a aba oculta. A venda é confirmada pelo webhook.
+          Bloqueios do navegador e troca de dispositivo podem separar visitantes.
         </p>
       </section>
       {selected && (
@@ -318,7 +331,7 @@ export default function VisitorsPage({
                           {event.session_id
                             ? `Sessão ${event.session_id.slice(0, 10)}`
                             : 'Sessão não identificada'}{' '}
-                          · {dateTime(event.created_at)}
+                          · {dateTime(event.occurred_at || event.created_at)}
                         </div>
                       )}
                       <div
@@ -335,8 +348,26 @@ export default function VisitorsPage({
                           <strong>{labels[event.event_name] || event.event_name}</strong>
                           <p>{event.page_title || pathLabel(event.page_url)}</p>
                           <small className="journey-url">{pathLabel(event.page_url)}</small>
+                          {event.event_name === 'PageView' && event.duration_ms != null && (
+                            <p className="journey-detail">
+                              Tempo visível: {durationLabel(event.duration_ms)} · Ativo estimado:{' '}
+                              {durationLabel(event.active_ms || 0)} · Rolagem:{' '}
+                              {event.scroll_depth || 0}%
+                            </p>
+                          )}
+                          {event.event_name === 'PageView' && event.duration_ms == null && (
+                            <small>Tempo e rolagem indisponíveis nesta visita.</small>
+                          )}
+                          {event.event_name === 'CheckoutReturn' && event.away_ms != null && (
+                            <p className="journey-detail">
+                              Retorno {durationLabel(event.away_ms)} após o clique no checkout.
+                            </p>
+                          )}
                           {event.section && (
-                            <p className="journey-detail">Seção: {event.section}</p>
+                            <p className="journey-detail">
+                              {event.event_name === 'ScrollDepth' ? 'Rolagem' : 'Seção'}:{' '}
+                              {event.section}
+                            </p>
                           )}
                           {event.target_url && (
                             <p className="journey-detail">Destino: {pathLabel(event.target_url)}</p>
@@ -350,7 +381,9 @@ export default function VisitorsPage({
                             <small>Evento do navegador; não confirma uma venda.</small>
                           )}
                         </div>
-                        <time dateTime={event.created_at}>{dateTime(event.created_at)}</time>
+                        <time dateTime={event.occurred_at || event.created_at}>
+                          {dateTime(event.occurred_at || event.created_at)}
+                        </time>
                       </div>
                     </li>
                   );

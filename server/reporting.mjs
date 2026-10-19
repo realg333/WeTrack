@@ -277,9 +277,22 @@ export function visitorList(db, projectId, start, end, query = '', page = 1) {
 export function visitorJourney(db, projectId, visitorId, start, end) {
   const events = db
     .prepare(
-      'SELECT e.id,e.event_name,e.page_url,e.utm_source,e.utm_campaign,e.created_at,d.session_id,d.page_title,d.referrer,d.section,d.target_url FROM events e LEFT JOIN event_details d ON d.event_id=e.id WHERE e.project_id=? AND e.visitor_id=? AND e.day BETWEEN ? AND ? ORDER BY e.created_at,e.rowid LIMIT 500',
+      `WITH engagement AS (
+        SELECT t.page_view_id,MAX(t.duration_ms) AS duration_ms,MAX(t.active_ms) AS active_ms,MAX(t.scroll_depth) AS scroll_depth
+        FROM event_engagement t JOIN events e ON e.id=t.event_id
+        WHERE e.project_id=? AND e.visitor_id=? AND e.day BETWEEN ? AND ? GROUP BY t.page_view_id
+      )
+      SELECT e.id,e.event_name,e.page_url,e.utm_source,e.utm_campaign,e.created_at,d.session_id,d.page_title,d.referrer,d.section,d.target_url,
+        t.page_view_id,t.reason,t.away_ms,COALESCE(t.occurred_at,e.created_at) AS occurred_at,
+        CASE WHEN e.event_name='PageView' THEN m.duration_ms ELSE t.duration_ms END AS duration_ms,
+        CASE WHEN e.event_name='PageView' THEN m.active_ms ELSE t.active_ms END AS active_ms,
+        CASE WHEN e.event_name='PageView' THEN m.scroll_depth ELSE t.scroll_depth END AS scroll_depth
+      FROM events e LEFT JOIN event_details d ON d.event_id=e.id LEFT JOIN event_engagement t ON t.event_id=e.id
+        LEFT JOIN engagement m ON m.page_view_id=t.page_view_id
+      WHERE e.project_id=? AND e.visitor_id=? AND e.day BETWEEN ? AND ? AND e.event_name<>'PageEngagement'
+      ORDER BY COALESCE(t.occurred_at,e.created_at),e.rowid LIMIT 500`,
     )
-    .all(projectId, visitorId, start, end);
+    .all(projectId, visitorId, start, end, projectId, visitorId, start, end);
   if (!events.length)
     throw Object.assign(new Error('Visitante não encontrado neste período.'), { status: 404 });
   const sales = reportSales(db, projectId, start, end).filter((s) => s.visitor_id === visitorId);

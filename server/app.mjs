@@ -870,7 +870,29 @@ export function createApp(db, options = {}) {
           'Click',
           'InitiateCheckout',
           'Purchase',
+          'PageEngagement',
+          'PageExit',
+          'PageReturn',
+          'CheckoutReturn',
+          'ScrollDepth',
         ]),
+        page_view_id: z.string().min(8).max(100).optional(),
+        duration_ms: z.number().int().min(0).max(86400000).optional(),
+        active_ms: z.number().int().min(0).max(86400000).optional(),
+        scroll_depth: z.number().int().min(0).max(100).optional(),
+        away_ms: z.number().int().min(0).max(86400000).optional(),
+        occurred_at: z.string().datetime().optional(),
+        reason: z
+          .enum([
+            'heartbeat',
+            'hidden',
+            'exit',
+            'navigation',
+            'visible',
+            'history',
+            'after_checkout_click',
+          ])
+          .optional(),
         session_id: z.string().min(8).max(100).optional(),
         page_title: z.string().max(200).optional(),
         referrer: z.string().max(2000).optional(),
@@ -884,6 +906,8 @@ export function createApp(db, options = {}) {
         utm_campaign: z.string().max(200).default(''),
       })
       .parse(req.body);
+    if (data.active_ms != null && data.active_ms > (data.duration_ms ?? 0))
+      return res.status(400).json({ error: 'Tempo ativo maior que o tempo na página.' });
     if (new URL(data.page_url).origin !== pixel.domain)
       return res.status(403).json({ error: 'Página fora do domínio autorizado.' });
     // A browser Purchase is an event, never a confirmed sale. Revenue comes from webhooks.
@@ -920,6 +944,17 @@ export function createApp(db, options = {}) {
         data.utm_medium || null,
         data.utm_content || null,
         data.utm_term || null,
+      );
+    if (inserted.changes && data.page_view_id)
+      db.prepare('INSERT INTO event_engagement VALUES(?,?,?,?,?,?,?,?)').run(
+        data.event_id,
+        data.page_view_id,
+        data.duration_ms ?? null,
+        data.active_ms ?? null,
+        data.scroll_depth ?? null,
+        data.reason || null,
+        data.away_ms ?? null,
+        data.occurred_at || null,
       );
     if (data.attribution_code)
       db.prepare(

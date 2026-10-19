@@ -110,6 +110,7 @@ Cadastre o domínio em **Integrações → Pixel de rastreio** e instale o scrip
   src="https://track.seudominio.com.br/pixel.js"
   data-pixel="px_SEU_ID"
   data-checkout-origin="https://pay.seucheckout.com"
+  data-checkout-url="https://pay.seucheckout.com/oferta"
 ></script>
 ```
 
@@ -121,7 +122,11 @@ window.WeTrack.track('Purchase');
 const visitorId = window.WeTrack.visitorId;
 ```
 
-Links com `data-wetrack-checkout` ou com a origem indicada em `data-checkout-origin` geram InitiateCheckout ao clicar. O código gerado pelo painel inclui a origem do checkout cadastrado. Isso registra intenção de ir ao checkout, sem observar a navegação dentro de um site de terceiros. O pixel registra mudanças de caminho em aplicações SPA, visualizações de seções `[data-wetrack-section]` ou `main section[id]`, cliques e sessões com 30 minutos de inatividade. URLs enviadas perdem parâmetros e fragmentos; formulários não são lidos. Purchase do navegador **não cria venda nem faturamento**. Vendas entram pelo webhook.
+Links e botões com `data-wetrack-checkout`, links para Hotmart/Cakto e o endereço de `data-checkout-url` geram InitiateCheckout (IC) ao clicar. O código gerado pelo painel inclui o endereço do checkout cadastrado; o atributo antigo `data-checkout-origin` continua aceito. Isso registra intenção de ir ao checkout, sem observar a navegação dentro de um site de terceiros. O pixel registra mudanças de caminho em aplicações SPA, visualizações de seções `[data-wetrack-section]` ou `main section[id]`, cliques e sessões com 30 minutos de inatividade. URLs enviadas perdem parâmetros e fragmentos; formulários não são lidos. Purchase do navegador **não cria venda nem faturamento**. Vendas entram pelo webhook.
+
+Em **Visitas e atribuição → Ver trajeto**, cada visita mostra o tempo com a página visível, tempo ativo estimado (pausa após 60 segundos sem interação ou com a aba oculta) e a maior rolagem. Os marcos de 25%, 50%, 75% e 100%, saídas e retornos ficam na linha do tempo. O tempo é atualizado a cada 15 segundos e ao ocultar/sair, usando `sendBeacon` com fallback para `fetch` com `keepalive`. Atualizações acumuladas são consolidadas por visita, sem somar o mesmo tempo repetidamente. Visitas anteriores à atualização não têm essas medidas.
+
+`CheckoutReturn` marca a volta ao site/aba depois de um clique de checkout seguido de saída, inclusive ao usar o botão voltar (com ou sem restauração pelo cache do navegador). A intenção fica no armazenamento da aba por até 24 horas. Esse evento não comprova quanto tempo o visitante permaneceu no checkout nem abandono de compra. Para acompanhar os passos dentro de um checkout externo, use a integração da plataforma ou instale um pixel autorizado nesse domínio. O mesmo visitante depende do armazenamento do navegador; bloqueadores, troca de dispositivo e restrições de armazenamento podem impedir ou separar registros.
 
 ## API de vendas
 
