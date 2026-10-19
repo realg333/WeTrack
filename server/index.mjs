@@ -16,12 +16,21 @@ const worker = setInterval(
   30000,
 );
 worker.unref();
+const rulesWorker = setInterval(
+  () =>
+    void app.locals.rules
+      .runAll()
+      .catch(() => console.error('Falha temporária na verificação de regras.')),
+  60000,
+);
+rulesWorker.unref();
 const server = app.listen(Number(process.env.PORT || 3001), host, () =>
   console.log(`WeTrack API: http://${host}:${process.env.PORT || 3001}`),
 );
 for (const signal of ['SIGINT', 'SIGTERM'])
   process.on(signal, () => {
     clearInterval(worker);
+    clearInterval(rulesWorker);
     server.close(() => {
       db.close();
       process.exit(0);

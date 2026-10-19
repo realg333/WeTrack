@@ -120,7 +120,7 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
   async function inspect(project, level, id) {
     return snapshot(context(project, level, id));
   }
-  async function update(project, level, id, input) {
+  async function update(project, level, id, input, { automated = false, guard } = {}) {
     const lock = `${project}:${level}:${id}`;
     if (pending.has(lock)) throw fail('Há uma alteração em andamento para este item.', 409);
     pending.add(lock);
@@ -153,8 +153,12 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
         if (input.budget !== before.budget)
           params[before.budget_type === 'daily' ? 'daily_budget' : 'lifetime_budget'] = amount;
       }
-      if (!Object.keys(params).length)
+      guard?.();
+      if (!Object.keys(params).length) {
+        if (!automated && level === 'campaigns' && input.active !== undefined)
+          db.prepare('DELETE FROM rule_campaign_state WHERE campaign_id=?').run(id);
         return { ok: true, local_only: false, confirmed: true, unchanged: true, entity: before };
+      }
       // Recheck selection and credentials immediately before the external write.
       if (context(project, level, id).cipher !== ctx.cipher)
         throw fail('A conexão mudou. Reabra a edição.', 409);
@@ -205,6 +209,8 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
         ...(level === 'ads' ? [] : [after.budget_type === 'daily' ? after.budget : 0]),
         id,
       );
+      if (!automated && level === 'campaigns' && input.active !== undefined)
+        db.prepare('DELETE FROM rule_campaign_state WHERE campaign_id=?').run(id);
       return { ok: true, local_only: false, confirmed: true, entity: after };
     } finally {
       pending.delete(lock);

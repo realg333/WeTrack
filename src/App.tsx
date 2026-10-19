@@ -11,7 +11,6 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
-  CirclePlus,
   Ellipsis,
   FlaskConical,
   LayoutDashboard,
@@ -58,6 +57,7 @@ import {
   Toggle,
 } from './components';
 import IntegrationsPage from './Integrations';
+import RulesPage from './RulesPage';
 import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
 import ConversionFunnel from './ConversionFunnel';
@@ -772,83 +772,14 @@ export default function App() {
                 <VisitorsPage data={data} onConnect={() => navigate('integrations')} />
               )}
               {page === 'rules' && (
-                <>
-                  <div className="inline-notice">
-                    <Bell size={15} />
-                    As regras geram alertas na WeTrack com base no período selecionado. Nenhuma
-                    campanha é alterada automaticamente.
-                  </div>
-                  <div className="rule-grid">
-                    {data.rules.map((rule) => (
-                      <section className="panel rule-card" key={rule.id}>
-                        <div className="rule-top">
-                          <span className="rule-icon">
-                            <Zap size={20} />
-                          </span>
-                          <Toggle
-                            checked={Boolean(rule.active)}
-                            label={`Ativar ${rule.name}`}
-                            onChange={async () => {
-                              try {
-                                await mutate(`/rules/${rule.id}`, 'PATCH', {
-                                  active: !rule.active,
-                                });
-                                await load(true);
-                              } catch (e) {
-                                notify((e as Error).message, true);
-                              }
-                            }}
-                          />
-                        </div>
-                        <h3>{rule.name}</h3>
-                        <p>
-                          Quando <b>{rule.metric.toUpperCase()}</b> for{' '}
-                          {rule.operator === 'gt' ? 'maior' : 'menor'} que{' '}
-                          <b>
-                            {rule.metric === 'roas'
-                              ? `${decimal(rule.threshold)}x`
-                              : brl(rule.threshold)}
-                          </b>
-                        </p>
-                        <div className="rule-result">
-                          <Badge tone={rule.matches.length ? 'amber' : 'neutral'}>
-                            {rule.matches.length
-                              ? `${rule.matches.length} campanha(s) em alerta`
-                              : 'Sem alertas no período'}
-                          </Badge>
-                        </div>
-                        {rule.matches.length > 0 && (
-                          <p className="rule-matches">{rule.matches.join(' · ')}</p>
-                        )}
-                        <div className="rule-footer">
-                          <span>
-                            <Bell size={13} />
-                            Alerta no painel
-                          </span>
-                          <button
-                            className="text-button text-red"
-                            onClick={async () => {
-                              try {
-                                await mutate(`/rules/${rule.id}`, 'DELETE');
-                                notify('Regra excluída.');
-                                await load(true);
-                              } catch (e) {
-                                notify((e as Error).message, true);
-                              }
-                            }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </section>
-                    ))}
-                    <button className="add-rule" onClick={() => setModal('rule')}>
-                      <CirclePlus size={26} />
-                      <strong>Criar uma regra</strong>
-                      <span>Transforme indicadores em sinais.</span>
-                    </button>
-                  </div>
-                </>
+                <RulesPage
+                  key={project}
+                  project={project}
+                  creating={modal === 'rule'}
+                  onClose={() => setModal(null)}
+                  notify={notify}
+                  onDataChange={() => void load(true)}
+                />
               )}
               {page === 'integrations' && (
                 <IntegrationsPage
@@ -1001,63 +932,6 @@ export default function App() {
               </button>
               <button className="button primary" disabled={saving}>
                 {saving && <Spinner />}Criar campanha
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {modal === 'rule' && (
-        <Modal
-          title="Criar regra de alerta"
-          subtitle="Defina um limite para acompanhar as campanhas."
-          onClose={() => setModal(null)}
-        >
-          <form onSubmit={(e) => void saveForm(e, 'rule')}>
-            <label>
-              Nome da regra
-              <input
-                name="name"
-                required
-                minLength={3}
-                maxLength={100}
-                placeholder="Ex.: Atenção ao custo de aquisição"
-              />
-            </label>
-            <div className="form-grid">
-              <label>
-                Indicador
-                <select name="metric">
-                  <option value="cpa">CPA · Custo por aquisição</option>
-                  <option value="roas">ROAS · Retorno</option>
-                  <option value="spend">Investimento</option>
-                </select>
-              </label>
-              <label>
-                Condição
-                <select name="operator">
-                  <option value="gt">Maior que</option>
-                  <option value="lt">Menor que</option>
-                </select>
-              </label>
-            </div>
-            <label>
-              Valor limite
-              <input
-                name="threshold"
-                type="number"
-                min="0"
-                max="1000000"
-                step="0.01"
-                required
-                placeholder="25"
-              />
-            </label>
-            <div className="modal-actions">
-              <button className="button secondary" type="button" onClick={() => setModal(null)}>
-                Cancelar
-              </button>
-              <button className="button primary" disabled={saving}>
-                {saving && <Spinner />}Criar regra
               </button>
             </div>
           </form>
@@ -1505,7 +1379,7 @@ function NotificationList({ data, onSelect }: { data: Dashboard; onSelect: (s: S
             </span>
             <div>
               <strong>{r.name}</strong>
-              <p>{r.matches.length} campanha(s) atingiram o limite no período selecionado.</p>
+              <p>{r.matches.length} campanha(s) atingiram as condições no período da regra.</p>
               <small>Alerta de indicador</small>
             </div>
           </div>

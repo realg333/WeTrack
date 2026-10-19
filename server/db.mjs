@@ -20,6 +20,12 @@ export function createDatabase(
     CREATE TABLE IF NOT EXISTS pixels (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, domain TEXT NOT NULL, checkout_url TEXT, active INTEGER DEFAULT 1, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, pixel_id TEXT REFERENCES pixels(id), project_id TEXT REFERENCES projects(id), visitor_id TEXT NOT NULL, event_name TEXT NOT NULL, page_url TEXT, utm_source TEXT, utm_campaign TEXT, created_at TEXT NOT NULL, day TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS rules (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, metric TEXT NOT NULL, operator TEXT NOT NULL, threshold REAL NOT NULL, active INTEGER DEFAULT 1, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS rule_configs (rule_id TEXT PRIMARY KEY REFERENCES rules(id) ON DELETE CASCADE, config TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS rule_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, rule_id TEXT NOT NULL, rule_name TEXT NOT NULL, campaign_id TEXT NOT NULL, campaign_name TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL, message TEXT NOT NULL, metrics TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS rule_runs_history ON rule_runs(project_id,created_at);
+    CREATE INDEX IF NOT EXISTS rule_runs_campaign ON rule_runs(rule_id,campaign_id,created_at);
+    CREATE TABLE IF NOT EXISTS rule_campaign_state (campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id), mode TEXT NOT NULL, rule_id TEXT NOT NULL, changed_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS rule_worker_state (project_id TEXT PRIMARY KEY REFERENCES projects(id), lease_until INTEGER NOT NULL DEFAULT 0, next_run INTEGER NOT NULL DEFAULT 0, last_attempt TEXT, last_run TEXT, last_error TEXT);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS meta_connections (project_id TEXT PRIMARY KEY REFERENCES projects(id), token_cipher TEXT NOT NULL, accounts TEXT NOT NULL, connected_at TEXT NOT NULL, last_sync TEXT);
     CREATE TABLE IF NOT EXISTS meta_campaigns (campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id), external_id TEXT NOT NULL, account_id TEXT NOT NULL);

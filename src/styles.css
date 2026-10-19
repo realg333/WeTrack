@@ -1894,6 +1894,192 @@ kbd {
   font-size: 14px;
   margin-bottom: 11px;
   line-height: 1.7;
+  margin-top: 14px;
+}
+.rules-page {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.rules-page .inline-notice {
+  margin: 0;
+}
+.rules-worker {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.rules-worker strong {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.rules-worker p,
+.rules-worker small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.8;
+  margin-top: 6px;
+}
+.rules-worker .button {
+  flex-shrink: 0;
+}
+.rule-conditions {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.rule-conditions b {
+  color: var(--text);
+  font-weight: 550;
+}
+.rule-conditions small {
+  color: var(--amber);
+}
+.rules-page .rule-footer {
+  padding-top: 16px;
+  margin-top: 18px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rules-page .rule-footer .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rule-history {
+  min-width: 0;
+}
+.rule-history td {
+  white-space: normal;
+  min-width: 130px;
+  max-width: 330px;
+  font-size: 12px;
+  vertical-align: top;
+}
+.rule-history td small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 6px;
+}
+.rule-editor .rule-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 18px 0;
+  min-width: 0;
+}
+.rule-fieldset legend {
+  font-size: 12px;
+  padding: 0 6px;
+}
+.rule-condition-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.8fr) 30px;
+  align-items: end;
+  gap: 10px;
+}
+.rule-condition-row label {
+  min-width: 0;
+}
+.rule-condition-row select,
+.rule-condition-row input {
+  min-width: 0;
+  width: 100%;
+}
+.rule-condition-row .icon-button {
+  margin-bottom: 20px;
+}
+.rule-fieldset > p,
+.rule-help,
+.rule-explanation {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.rule-fieldset > p {
+  margin-top: 12px;
+}
+.rule-explanation {
+  padding: 14px 16px;
+  border-left: 3px solid var(--blue);
+  background: var(--blue-bg);
+  border-radius: 4px;
+}
+.rule-help {
+  margin: -8px 0 18px;
+}
+.rule-editor .rule-activate {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 18px 0;
+}
+.rule-editor .rule-activate input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+  flex-shrink: 0;
+}
+.rule-preview {
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.rule-preview p,
+.rule-preview small {
+  display: block;
+  color: var(--muted);
+}
+.rule-preview > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.rules-error {
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 680px) {
+  .rules-worker {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px;
+  }
+  .rule-condition-row {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    gap: 0 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .rule-condition-row label {
+    grid-column: 1;
+  }
+  .rule-condition-row .icon-button {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
 }
 .rule-card > p {
   font-size: 11px;

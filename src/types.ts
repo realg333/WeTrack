@@ -71,7 +71,15 @@ export type Rule = {
   threshold: number;
   active: number;
   matches: string[];
+  action: 'alert' | 'pause' | 'stop' | 'resume';
+  conditions: RuleCondition[];
+  period: 'today' | 'yesterday' | '3d' | '7d' | '30d';
+  campaign_ids: string[];
+  min_spend: number;
+  cooldown_minutes: number;
+  schedule_time: string | null;
 };
+export type RuleCondition = { metric: string; operator: string; threshold: number };
 export type Dashboard = {
   metrics: Metrics;
   daily: { day: string; revenue: number; spend: number }[];

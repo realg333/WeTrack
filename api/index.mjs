@@ -5,6 +5,15 @@ import { afterResponse } from '../server/background.mjs';
 export default async function handler(req, res) {
   try {
     const app = await cloudApp();
+    if (req.method === 'GET' && /^\/api\/dashboard(?:\?|$)/.test(req.url)) {
+      const project = new URL(req.url, 'http://localhost').searchParams.get('project');
+      if (project)
+        waitUntil(
+          afterResponse(res, () =>
+            res.statusCode === 200 ? app.locals.rules.run(project) : Promise.resolve(),
+          ),
+        );
+    }
     if (
       req.method === 'POST' &&
       (/^\/api\/webhooks\//.test(req.url) ||

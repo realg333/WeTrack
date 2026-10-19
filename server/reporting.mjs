@@ -1,4 +1,5 @@
 import { summarize, money, ratio } from './domain.mjs';
+import { ruleReport } from './rule-model.mjs';
 
 export const campaignVisible = `NOT EXISTS (SELECT 1 FROM meta_campaigns mc WHERE mc.campaign_id=c.id) OR EXISTS (SELECT 1 FROM meta_campaigns mc JOIN meta_account_selection sel ON sel.account_id=mc.account_id AND sel.project_id=c.project_id WHERE mc.campaign_id=c.id AND sel.enabled=1)`;
 export function visibleCampaigns(db, projectId) {
@@ -97,19 +98,7 @@ export function dashboardReport(db, p, start, end) {
       "SELECT page_url,COUNT(*) AS views,COUNT(DISTINCT visitor_id) AS visitors FROM events WHERE project_id=? AND day BETWEEN ? AND ? AND event_name='PageView' GROUP BY page_url ORDER BY views DESC LIMIT 20",
     )
     .all(p.id, start, end);
-  const rules = db
-    .prepare('SELECT * FROM rules WHERE project_id=?')
-    .all(p.id)
-    .map((r) => ({
-      ...r,
-      matches: r.active
-        ? campaigns
-            .filter((c) =>
-              r.operator === 'gt' ? c[r.metric] > r.threshold : c[r.metric] < r.threshold,
-            )
-            .map((c) => c.name)
-        : [],
-    }));
+  const rules = ruleReport(db, p.id, campaignRows);
   const funnelRows = db
     .prepare(
       `SELECT f.* FROM campaign_funnel f JOIN campaigns c ON c.id=f.campaign_id WHERE c.project_id=? AND c.source='Meta Ads' AND (${campaignVisible}) AND f.day BETWEEN ? AND ?`,

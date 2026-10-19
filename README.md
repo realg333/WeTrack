@@ -200,6 +200,20 @@ tests/                API, Meta e navegador
 docs/                 Referências e decisões
 ```
 
+## Regras de campanhas
+
+Em **Regras e alertas → Nova regra**, escolha um modelo ou combine até cinco condições com **E**. Exemplo: investimento **maior que R$ 100** e vendas aprovadas **menores que 2** → **Corte definitivo**. Os valores dos modelos são exemplos editáveis; regras de veiculação começam desativadas. Use **Simular regra**, confira o período e as campanhas e marque **Ativar ao salvar** quando estiver pronta.
+
+- **Alertar** registra o resultado no painel. **Pausar campanha** confirma `PAUSED` na Meta. **Corte definitivo** também pausa, mas bloqueia a reativação por regras; a retomada exige ativação manual na gestão Meta. Excluir ou desativar a regra não desfaz suas ações.
+- **Religar campanha** retoma somente campanhas pausadas pelas regras. Campanhas pausadas manualmente e cortes definitivos ficam protegidos. Uma condição de corte/pausa ainda atingida impede a retomada. O intervalo de segurança evita alternâncias entre ações.
+- Cada regra usa seu próprio período (hoje, ontem, 3, 7 ou 30 dias), em Brasília, independentemente do filtro do dashboard. Vendas são pedidos aprovados atribuídos à campanha na WeTrack; pendências, reembolsos e vendas sem atribuição não contam. CPA sem vendas, ROAS sem gasto, CPC sem cliques e CTR sem impressões não disparam condições. Para zero vendas, combine gasto com vendas iguais a zero.
+- Escopo vazio inclui todas as campanhas da operação; a seleção permite restringir campanhas específicas. Somente campanhas Meta de contas selecionadas, ativas e em BRL recebem ações reais. Campanhas locais permitem alertas e simulação.
+- O horário diário usa Brasília e abre uma janela de 60 minutos. A regra executa na primeira verificação nessa janela, respeitando as condições e o intervalo de segurança. Reativação por horário acontece no máximo uma vez por campanha ao dia.
+
+O servidor sincroniza custos e confirma o estado da Meta antes de alterar a veiculação. Falha na sincronização impede decisões com dados antigos. O histórico registra campanhas, indicadores, sucesso, falhas e bloqueios; uma resposta não confirmada da Meta não aparece como sucesso. Atrasos no agendador, nos custos e na atribuição significam que o limite não é um teto instantâneo de gasto.
+
+Na Vercel Hobby, o workflow `.github/workflows/campaign-rules.yml` chama o endpoint protegido `/api/internal/rules-run` a cada cinco minutos. Configure com `node scripts/configure-rules-scheduler.mjs <caminho-do-vc.js>`: ele cria uma chave privada em `data/rules-scheduler.json`, configura `RULES_CRON_SECRET` na Vercel e `WETRACK_RULES_CRON_SECRET` nos secrets do repositório, sem imprimir valores. Faça um novo deploy após configurar. O workflow não faz checkout nem executa código de PRs e não tem permissões de escrita. Pode ser disparado manualmente em GitHub Actions. [O agendamento do GitHub pode atrasar e é desativado após 60 dias sem atividade em repositórios públicos](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Durante o uso do painel há uma verificação adicional, e o servidor local mantém seu próprio worker.
+
 ## Verificação
 
 ```powershell

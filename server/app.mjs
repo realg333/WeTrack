@@ -30,6 +30,8 @@ import {
 } from './reporting.mjs';
 import { createPlatformService } from './platforms.mjs';
 import { providerSchema } from './platform-adapters.mjs';
+import { createRuleService } from './rules.mjs';
+import { configuredRules, ruleReport } from './rule-model.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -45,6 +47,8 @@ export function createApp(db, options = {}) {
   const meta = createMetaService(db, secretKey, options.transport || fetch);
   const oauth = createMetaOAuth(db, meta, options.transport || fetch);
   const platforms = createPlatformService(db, secretKey, meta, options.transport || fetch);
+  const rules = createRuleService(db, meta, options.rulesOptions);
+  app.locals.rules = rules;
   const range = (query) => {
     const end = dateSchema.parse(query.end || dateKey()),
       start = dateSchema.parse(query.start || end);
@@ -97,6 +101,7 @@ export function createApp(db, options = {}) {
     req.path.startsWith('/api/meta/oauth/start/') ||
     req.path === '/api/meta/oauth/callback' ||
     req.path === '/api/internal/capi-drain' ||
+    req.path === '/api/internal/rules-run' ||
     ['/api/health', '/api/session', '/api/login'].includes(req.path);
   app.use('/api', (req, res, next) => {
     // originalUrl retains the /api mount prefix.
@@ -146,6 +151,21 @@ export function createApp(db, options = {}) {
       return res.status(401).json({ error: 'Não autorizado.' });
     await app.locals.drain();
     res.json({ ok: true });
+  });
+  app.get('/api/internal/rules-run', async (req, res) => {
+    const expected = process.env.RULES_CRON_SECRET;
+    if (
+      !expected ||
+      !timingSafeEqual(
+        Buffer.from(hash(req.headers.authorization || '')),
+        Buffer.from(hash(`Bearer ${expected}`)),
+      )
+    )
+      return res.status(401).json({ error: 'Não autorizado.' });
+    const results = await rules.runAll();
+    res
+      .status(results.some((r) => r.failures) ? 502 : 200)
+      .json({ ok: !results.some((r) => r.failures), results });
   });
   app.get('/api/session', (req, res) => {
     const sid = req.headers.cookie
@@ -205,6 +225,7 @@ export function createApp(db, options = {}) {
     const p = project(req.query.project),
       r = range(req.query);
     res.json(dashboardReport(db, p, r.start, r.end));
+    if (!options.serverless && !p.demo) void rules.run(p.id).catch(() => {});
   });
   app.get('/api/ad-hierarchy', (req, res) => {
     const p = project(req.query.project),
@@ -675,37 +696,50 @@ export function createApp(db, options = {}) {
     res.json({ ok: true });
     if (!options.serverless) void app.locals.drain().catch(() => {});
   });
-  app.post('/api/rules', (req, res) => {
-    const data = z
-      .object({
-        name: z.string().trim().min(3).max(100),
-        project_id: z.string(),
-        metric: z.enum(['cpa', 'roas', 'spend']),
-        operator: z.enum(['gt', 'lt']),
-        threshold: z.number().min(0).max(1000000),
-      })
-      .parse(req.body);
-    project(data.project_id);
-    const rid = id('rule');
-    db.prepare('INSERT INTO rules VALUES(?,?,?,?,?,?,?,?)').run(
-      rid,
-      data.project_id,
-      data.name,
-      data.metric,
-      data.operator,
-      data.threshold,
-      1,
-      now(),
-    );
-    res.status(201).json({ id: rid });
+  app.get('/api/rules', (req, res) => {
+    const p = project(req.query.project);
+    res.json({
+      rules: ruleReport(db, p.id, visibleCampaigns(db, p.id)),
+      campaigns: visibleCampaigns(db, p.id),
+      history: rules.history(p.id),
+      worker:
+        db
+          .prepare(
+            'SELECT last_attempt,last_run,last_error,next_run FROM rule_worker_state WHERE project_id=?',
+          )
+          .get(p.id) || null,
+    });
   });
+  app.post('/api/rules/preview', (req, res) => {
+    const { rule_id, ...input } = req.body;
+    const ruleId = z.string().min(1).optional().parse(rule_id);
+    res.json(rules.preview(input, ruleId));
+  });
+  app.post('/api/rules/run', async (req, res) => {
+    const p = project(z.object({ project_id: z.string() }).strict().parse(req.body).project_id);
+    res.json(await rules.run(p.id, { force: true }));
+  });
+  app.post('/api/rules', (req, res) => res.status(201).json(rules.save(req.body)));
+  app.put('/api/rules/:id', (req, res) => res.json(rules.save(req.body, req.params.id)));
   app.patch('/api/rules/:id', (req, res) => {
-    const d = z.object({ active: z.boolean() }).parse(req.body);
-    db.prepare('UPDATE rules SET active=? WHERE id=?').run(Number(d.active), req.params.id);
+    const d = z.object({ project_id: z.string(), active: z.boolean() }).strict().parse(req.body);
+    project(d.project_id);
+    if (!configuredRules(db, d.project_id).some((r) => r.id === req.params.id))
+      return res.status(404).json({ error: 'Regra não encontrada nesta operação.' });
+    db.prepare('UPDATE rules SET active=? WHERE id=? AND project_id=?').run(
+      Number(d.active),
+      req.params.id,
+      d.project_id,
+    );
     res.json({ ok: true });
   });
   app.delete('/api/rules/:id', (req, res) => {
-    db.prepare('DELETE FROM rules WHERE id=?').run(req.params.id);
+    const p = project(z.string().parse(req.query.project));
+    const result = db
+      .prepare('DELETE FROM rules WHERE id=? AND project_id=?')
+      .run(req.params.id, p.id);
+    if (!result.changes)
+      return res.status(404).json({ error: 'Regra não encontrada nesta operação.' });
     res.json({ ok: true });
   });
   app.get('/api/settings', (_req, res) =>
