@@ -33,6 +33,8 @@ export function createDatabase(
     CREATE TABLE IF NOT EXISTS campaign_funnel (campaign_id TEXT REFERENCES campaigns(id), day TEXT NOT NULL, link_clicks INTEGER DEFAULT 0, landing_views INTEGER DEFAULT 0, checkouts INTEGER DEFAULT 0, meta_purchases INTEGER DEFAULT 0, PRIMARY KEY(campaign_id,day));
     CREATE TABLE IF NOT EXISTS event_details (event_id TEXT PRIMARY KEY REFERENCES events(id), session_id TEXT, page_title TEXT, referrer TEXT, section TEXT, target_url TEXT, utm_medium TEXT, utm_content TEXT, utm_term TEXT);
     CREATE TABLE IF NOT EXISTS sale_attribution (sale_id TEXT PRIMARY KEY REFERENCES sales(id), visitor_id TEXT, adset_id TEXT, ad_id TEXT);
+    CREATE TABLE IF NOT EXISTS sale_tracking (sale_id TEXT PRIMARY KEY REFERENCES sales(id), utm_term TEXT, adset_reference TEXT, ad_reference TEXT);
+    CREATE TABLE IF NOT EXISTS manual_sale_attribution (sale_id TEXT PRIMARY KEY REFERENCES sales(id), updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS oauth_links (ticket_hash TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), expires_at INTEGER NOT NULL, used INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS oauth_states (state_hash TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), cookie_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY);

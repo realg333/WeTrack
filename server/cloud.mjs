@@ -26,6 +26,8 @@ export const cloudTables = [
   'campaign_funnel',
   'event_details',
   'sale_attribution',
+  'sale_tracking',
+  'manual_sale_attribution',
   'provider_connections',
   'provider_orders',
   'webhook_receipts',

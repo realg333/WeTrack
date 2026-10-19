@@ -346,6 +346,33 @@ test('Meta selects accounts, imports the three levels once and sends deduplicate
       ),
     );
     assert.equal((await req(`/pixels/${pixel.data.id}`, null, 'DELETE')).status, 200);
+    // A manual correction to another account must survive the next structure import.
+    const attributionOptions = (
+      await req('/sale-attribution-options?project=workspace', null, 'GET')
+    ).data;
+    const targetCampaign = attributionOptions.campaigns.find((c) => c.external_id === '987655');
+    const targetSet = attributionOptions.adsets.find((a) => a.campaign_id === targetCampaign.id);
+    const targetAd = attributionOptions.ads.find((ad) => ad.adset_id === targetSet.id);
+    const corrected = await req(
+      `/sales/${earlierSale.data.id}/attribution`,
+      {
+        project_id: 'workspace',
+        campaign_id: targetCampaign.id,
+        adset_id: targetSet.id,
+        ad_id: targetAd.id,
+      },
+      'PATCH',
+    );
+    assert.equal(corrected.status, 200);
+    await app.locals.meta.sync('workspace', dateKey(), dateKey());
+    const preserved = (await req('/dashboard?project=workspace', null, 'GET')).data.sales.find(
+      (s) => s.id === earlierSale.data.id,
+    );
+    assert.equal(preserved.campaign_id, targetCampaign.id);
+    assert.equal(preserved.adset_id, targetSet.id);
+    assert.equal(preserved.ad_id, targetAd.id);
+    assert.equal(preserved.attribution_method, 'manual');
+    assert.equal(preserved.ad_reference, '123101');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.close();

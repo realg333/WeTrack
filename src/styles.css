@@ -2367,6 +2367,89 @@ kbd {
   grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
   gap: 23px;
 }
+.meta-utm-template {
+  margin-bottom: 23px;
+}
+.meta-utm-template .form-content p,
+.sale-attribution > p,
+.sale-attribution form > p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.sale-attribution {
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.attribution-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.attribution-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.sale-utm-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  margin: 16px 0 20px;
+}
+.sale-utm-values dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.sale-utm-values dd {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+.sale-attribution select {
+  width: 100%;
+  min-width: 0;
+}
+.sale-attribution form > small {
+  display: block;
+  margin-bottom: 14px;
+}
+.sale-attribution .form-error {
+  color: var(--red, #ef7878);
+  font-size: 12px;
+}
+.sale-attribution-cell {
+  max-width: 260px;
+  white-space: normal;
+}
+.sale-attribution-cell strong,
+.sale-attribution-cell small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.sale-attribution-cell small {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 5px;
+}
+.sales-table .icon-button:has(.sale-assign-label) {
+  width: auto;
+  gap: 5px;
+  padding: 6px 8px;
+}
+.sale-assign-label {
+  font-size: 11px;
+}
+@media (max-width: 480px) {
+  .sale-utm-values {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .utm-builder .panel-heading {
   border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 21px;

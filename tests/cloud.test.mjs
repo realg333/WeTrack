@@ -19,6 +19,14 @@ test('cloud bootstrap is atomic and idempotent, carries encrypted configuration 
     await client.execute(
       "INSERT INTO campaigns VALUES('cloud-campaign','workspace','Permanente','Meta Ads',0,1,'2026-10-18T00:00:00Z')",
     );
+    await client.batch(
+      [
+        "INSERT INTO sales(id,project_id,external_id,campaign_id,product,amount,status,created_at,day) VALUES('cloud-sale','workspace','order','cloud-campaign','Produto',97,'approved','2026-10-18T12:00:00Z','2026-10-18')",
+        "INSERT INTO sale_tracking VALUES('cloud-sale','original-set','original-set','original-ad')",
+        "INSERT INTO manual_sale_attribution VALUES('cloud-sale','2026-10-18T13:00:00Z')",
+      ],
+      'write',
+    );
     await initializeCloud(
       client,
       key,
@@ -35,6 +43,14 @@ test('cloud bootstrap is atomic and idempotent, carries encrypted configuration 
       'Operação publicada',
     );
     assert.equal((await client.execute('SELECT COUNT(*) AS n FROM campaigns')).rows[0].n, 1);
+    assert.equal(
+      (await client.execute('SELECT utm_term FROM sale_tracking')).rows[0].utm_term,
+      'original-set',
+    );
+    assert.equal(
+      (await client.execute('SELECT sale_id FROM manual_sale_attribution')).rows[0].sale_id,
+      'cloud-sale',
+    );
     assert.equal(
       (await client.execute("SELECT COUNT(*) AS n FROM projects WHERE id='demo'")).rows[0].n,
       0,

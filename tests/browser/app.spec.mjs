@@ -81,7 +81,9 @@ test('real workspace: pixel, token, webhook sale, UTM builder and rules', async 
   await expect(page.getByRole('heading', { name: 'Pixel e2e', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'UTMs', exact: true }).click();
   await page.getByRole('textbox', { name: 'Campanha utm_campaign' }).fill('Campanha teste');
-  await expect(page.locator('.utm-result code')).toContainText('utm_campaign=Campanha+teste');
+  await expect(page.locator('.utm-builder .utm-result code')).toContainText(
+    'utm_campaign=Campanha+teste',
+  );
   await page.getByRole('tab', { name: 'Webhook API' }).click();
   await page.getByRole('button', { name: 'Conectar plataforma', exact: true }).click();
   await page.getByRole('button', { name: /API personalizada Conectar agora/ }).click();
@@ -163,8 +165,14 @@ test('installed pixel tracks visits, keeps attribution and propagates UTMs to li
   await page.waitForFunction(() => Boolean(window.WeTrack));
   expect(await page.evaluate(() => window.WeTrack.visitorId)).toBe(visitor);
   await expect
-    .poll(async () => (await (await request.get(`/api/pixels/${pixel.id}/events`)).json()).length)
-    .toBe(3); // two PageViews and the outbound click.
+    .poll(async () => {
+      const events = await (await request.get(`/api/pixels/${pixel.id}/events`)).json();
+      return {
+        pageviews: events.filter((e) => e.event_name === 'PageView').length,
+        clicks: events.filter((e) => e.event_name === 'Click').length,
+      };
+    })
+    .toEqual({ pageviews: 2, clicks: 1 }); // Exit/engagement delivery can finish after navigation.
   const events = await (await request.get(`/api/pixels/${pixel.id}/events`)).json();
   expect(events.every((e) => e.utm_source === 'facebook')).toBeTruthy();
 });

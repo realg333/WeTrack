@@ -30,3 +30,17 @@ export function resolveAdset(db, projectId, reference) {
         .get(projectId, reference, reference)
     : null;
 }
+
+export function isManualAttribution(db, saleId) {
+  return Boolean(db.prepare('SELECT 1 FROM manual_sale_attribution WHERE sale_id=?').get(saleId));
+}
+
+// Keep the received references separate from the resolved hierarchy and manual corrections.
+export function saveSaleTracking(db, saleId, term, adsetReference, adReference) {
+  db.prepare(
+    `INSERT INTO sale_tracking VALUES(?,?,?,?) ON CONFLICT(sale_id) DO UPDATE SET
+      utm_term=COALESCE(NULLIF(sale_tracking.utm_term,''),excluded.utm_term),
+      adset_reference=COALESCE(NULLIF(sale_tracking.adset_reference,''),excluded.adset_reference),
+      ad_reference=COALESCE(NULLIF(sale_tracking.ad_reference,''),excluded.ad_reference)`,
+  ).run(saleId, term || '', adsetReference || '', adReference || '');
+}

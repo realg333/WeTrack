@@ -330,7 +330,7 @@ export function createMetaService(db, key, transport = fetch) {
       // Resolve webhooks that arrived before this campaign/ad was imported.
       for (const sale of db
         .prepare(
-          'SELECT s.id,s.utm_campaign,sa.ad_id,sa.adset_id FROM sales s LEFT JOIN sale_attribution sa ON sa.sale_id=s.id WHERE s.project_id=?',
+          'SELECT s.id,s.utm_campaign,sa.ad_id,sa.adset_id FROM sales s LEFT JOIN sale_attribution sa ON sa.sale_id=s.id WHERE s.project_id=? AND NOT EXISTS (SELECT 1 FROM manual_sale_attribution ma WHERE ma.sale_id=s.id)',
         )
         .all(projectId)) {
         const ad = resolveAd(db, projectId, sale.ad_id),

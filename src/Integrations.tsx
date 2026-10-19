@@ -25,6 +25,8 @@ import PlatformConnection from './PlatformConnection';
 import { platformGuides, type Provider } from './platform-guides';
 
 const tabs = ['Visão geral', 'Meta Ads', 'Pixel de rastreio', 'UTMs', 'Webhook API'];
+const metaUtmTemplate =
+  'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}';
 const sample = {
   order_id: 'PEDIDO-1001',
   status: 'approved',
@@ -686,88 +688,138 @@ export default function IntegrationsPage({
         </>
       )}
       {tab === 'UTMs' && (
-        <div className="utm-builder-layout">
-          <section className="panel utm-builder">
+        <>
+          <section className="panel meta-utm-template">
             <div className="panel-heading">
               <div>
-                <h2>O começo de uma boa atribuição</h2>
-                <p>Monte um link e acompanhe a origem das conversões.</p>
+                <h2>Padrão para Facebook Ads</h2>
+                <p>Pronto para reutilizar em todos os anúncios da sua operação.</p>
               </div>
-              <Link2 size={21} className="text-blue" />
-            </div>
-            <div className="form-content">
-              <label>
-                URL da página de destino<span className="field-required">*</span>
-                <input
-                  type="url"
-                  value={utm.url}
-                  onChange={(e) => setUtm((v) => ({ ...v, url: e.target.value }))}
-                  placeholder="https://seusite.com.br"
-                />
-              </label>
-              <div className="form-grid">
-                {[
-                  ['source', 'Origem', 'facebook'],
-                  ['medium', 'Mídia', 'paid'],
-                  ['campaign', 'Campanha', 'lancamento_outubro'],
-                  ['content', 'Conteúdo', 'video_depoimento'],
-                ].map(([key, title, placeholder]) => (
-                  <label key={key}>
-                    {title}
-                    <small>utm_{key}</small>
-                    <input
-                      value={utm[key as keyof typeof utm]}
-                      placeholder={placeholder}
-                      onChange={(e) => setUtm((v) => ({ ...v, [key]: e.target.value }))}
-                    />
-                  </label>
-                ))}
-              </div>
-              <label>
-                Termo <small>utm_term · opcional</small>
-                <input
-                  value={utm.term}
-                  placeholder="palavra_chave"
-                  onChange={(e) => setUtm((v) => ({ ...v, term: e.target.value }))}
-                />
-              </label>
+              <Badge tone="green">Configurado</Badge>
             </div>
             <div className="utm-result">
-              <span>SEU LINK RASTREÁVEL</span>
-              <code>{utmUrl || 'Informe uma URL válida começando com https:// ou http://'}</code>
-              <button
-                className="button primary"
-                disabled={!utmUrl}
-                onClick={() => void copy(utmUrl)}
-              >
+              <span>PARÂMETROS DE URL DO ANÚNCIO</span>
+              <code>{metaUtmTemplate}</code>
+              <button className="button primary" onClick={() => void copy(metaUtmTemplate)}>
                 <Copy size={15} />
-                Copiar link
-                <ArrowUpRight size={14} />
+                Copiar padrão Facebook
               </button>
             </div>
-          </section>
-          <aside className="panel utm-guide">
-            <span className="large-icon">
-              <SparkIcon />
-            </span>
-            <h2>Cada parâmetro conta.</h2>
-            <p>Padronize seus links para ler os resultados com facilidade.</p>
-            <dl>
-              <dt>Origem</dt>
-              <dd>De onde veio o clique. Ex.: facebook, google.</dd>
-              <dt>Mídia</dt>
-              <dd>O tipo de tráfego. Ex.: paid, email, organic.</dd>
-              <dt>Campanha</dt>
-              <dd>O nome ou ID que conecta o clique à sua campanha.</dd>
-              <dt>Conteúdo</dt>
-              <dd>Qual anúncio ou criativo gerou a visita.</dd>
-            </dl>
-            <div className="pixel-tip">
-              <CircleHelp size={15} />
-              Use o mesmo nome ou ID cadastrado em Campanhas para atribuir as vendas.
+            <div className="form-content">
+              <p>
+                No Gerenciador de Anúncios, abra o anúncio e cole este código no campo{' '}
+                <strong>Parâmetros de URL</strong>, na seção de rastreamento. Use o código sem “?” e
+                mantenha a URL do site no campo de destino.
+              </p>
+              <p>
+                A Meta preenche os IDs de campanha, conjunto e anúncio quando o anúncio é veiculado.
+                Sincronize a estrutura em Meta Ads para a WeTrack reconhecer esses IDs.
+              </p>
+              <p>
+                Instale o pixel WeTrack na página e conecte o webhook do checkout para preservar e
+                receber a origem da compra. Se uma venda ficar sem atribuição, abra{' '}
+                <strong>Vendas → detalhes do pedido</strong>, confira as UTMs e selecione campanha,
+                conjunto e anúncio.
+              </p>
+              <dl className="sale-utm-values">
+                <div>
+                  <dt>utm_campaign</dt>
+                  <dd>ID da campanha</dd>
+                </div>
+                <div>
+                  <dt>utm_term</dt>
+                  <dd>ID do conjunto</dd>
+                </div>
+                <div>
+                  <dt>utm_content</dt>
+                  <dd>ID do anúncio</dd>
+                </div>
+              </dl>
             </div>
-          </aside>
-        </div>
+          </section>
+          <div className="utm-builder-layout">
+            <section className="panel utm-builder">
+              <div className="panel-heading">
+                <div>
+                  <h2>O começo de uma boa atribuição</h2>
+                  <p>Monte um link e acompanhe a origem das conversões.</p>
+                </div>
+                <Link2 size={21} className="text-blue" />
+              </div>
+              <div className="form-content">
+                <label>
+                  URL da página de destino<span className="field-required">*</span>
+                  <input
+                    type="url"
+                    value={utm.url}
+                    onChange={(e) => setUtm((v) => ({ ...v, url: e.target.value }))}
+                    placeholder="https://seusite.com.br"
+                  />
+                </label>
+                <div className="form-grid">
+                  {[
+                    ['source', 'Origem', 'facebook'],
+                    ['medium', 'Mídia', 'paid'],
+                    ['campaign', 'Campanha', 'lancamento_outubro'],
+                    ['content', 'Conteúdo', 'video_depoimento'],
+                  ].map(([key, title, placeholder]) => (
+                    <label key={key}>
+                      {title}
+                      <small>utm_{key}</small>
+                      <input
+                        value={utm[key as keyof typeof utm]}
+                        placeholder={placeholder}
+                        onChange={(e) => setUtm((v) => ({ ...v, [key]: e.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label>
+                  Termo <small>utm_term · opcional</small>
+                  <input
+                    value={utm.term}
+                    placeholder="palavra_chave"
+                    onChange={(e) => setUtm((v) => ({ ...v, term: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="utm-result">
+                <span>SEU LINK RASTREÁVEL</span>
+                <code>{utmUrl || 'Informe uma URL válida começando com https:// ou http://'}</code>
+                <button
+                  className="button primary"
+                  disabled={!utmUrl}
+                  onClick={() => void copy(utmUrl)}
+                >
+                  <Copy size={15} />
+                  Copiar link
+                  <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </section>
+            <aside className="panel utm-guide">
+              <span className="large-icon">
+                <SparkIcon />
+              </span>
+              <h2>Cada parâmetro conta.</h2>
+              <p>Padronize seus links para ler os resultados com facilidade.</p>
+              <dl>
+                <dt>Origem</dt>
+                <dd>De onde veio o clique. Ex.: facebook, google.</dd>
+                <dt>Mídia</dt>
+                <dd>O tipo de tráfego. Ex.: paid, email, organic.</dd>
+                <dt>Campanha</dt>
+                <dd>O nome ou ID que conecta o clique à sua campanha.</dd>
+                <dt>Conteúdo</dt>
+                <dd>Qual anúncio ou criativo gerou a visita.</dd>
+              </dl>
+              <div className="pixel-tip">
+                <CircleHelp size={15} />
+                Use o mesmo nome ou ID cadastrado em Campanhas para atribuir as vendas.
+              </div>
+            </aside>
+          </div>
+        </>
       )}
       {tab === 'Webhook API' && (
         <>

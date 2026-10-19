@@ -13,8 +13,21 @@ import {
 } from './domain.mjs';
 import { createMetaService } from './meta.mjs';
 import { createMetaOAuth } from './oauth.mjs';
-import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
-import { dashboardReport, hierarchyReport, visitorList, visitorJourney } from './reporting.mjs';
+import {
+  resolveCampaign,
+  resolveAd,
+  resolveAdset,
+  isManualAttribution,
+  saveSaleTracking,
+} from './attribution.mjs';
+import {
+  dashboardReport,
+  hierarchyReport,
+  visitorList,
+  visitorJourney,
+  visibleCampaigns,
+  reportSales,
+} from './reporting.mjs';
 import { createPlatformService } from './platforms.mjs';
 import { providerSchema } from './platform-adapters.mjs';
 
@@ -199,6 +212,72 @@ export function createApp(db, options = {}) {
       level = z.enum(['campaigns', 'adsets', 'ads']).parse(req.query.level || 'campaigns'),
       parent = z.string().max(100).optional().parse(req.query.parent);
     res.json({ level, rows: hierarchyReport(db, p.id, r.start, r.end, level, parent) });
+  });
+  app.get('/api/sale-attribution-options', (req, res) => {
+    const p = project(req.query.project);
+    const campaigns = visibleCampaigns(db, p.id);
+    const campaignIds = new Set(campaigns.map((c) => c.id));
+    const adsets = db
+      .prepare(
+        'SELECT a.* FROM ad_sets a JOIN campaigns c ON c.id=a.campaign_id WHERE c.project_id=? ORDER BY a.name,a.id',
+      )
+      .all(p.id)
+      .filter((a) => campaignIds.has(a.campaign_id));
+    const adsetIds = new Set(adsets.map((a) => a.id));
+    const ads = db
+      .prepare(
+        'SELECT ad.* FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id WHERE c.project_id=? ORDER BY ad.name,ad.id',
+      )
+      .all(p.id)
+      .filter((ad) => adsetIds.has(ad.adset_id));
+    res.json({ campaigns, adsets, ads });
+  });
+  app.patch('/api/sales/:id/attribution', (req, res) => {
+    const data = z
+      .object({
+        project_id: z.string().min(1),
+        campaign_id: z.string().min(1).max(100),
+        adset_id: z.string().min(1).max(100).nullable().default(null),
+        ad_id: z.string().min(1).max(100).nullable().default(null),
+      })
+      .strict()
+      .parse(req.body);
+    const p = project(data.project_id);
+    const sale = db
+      .prepare('SELECT * FROM sales WHERE id=? AND project_id=?')
+      .get(req.params.id, p.id);
+    if (!sale) return res.status(404).json({ error: 'Venda não encontrada nesta operação.' });
+    const campaign = visibleCampaigns(db, p.id).find((c) => c.id === data.campaign_id);
+    if (!campaign)
+      return res.status(400).json({ error: 'Selecione uma campanha disponível nesta operação.' });
+    const adset = data.adset_id ? resolveAdset(db, p.id, data.adset_id) : null;
+    if (
+      data.adset_id &&
+      (!adset || adset.adset_id !== data.adset_id || adset.campaign_id !== campaign.id)
+    )
+      return res.status(400).json({ error: 'O conjunto deve pertencer à campanha selecionada.' });
+    const ad = data.ad_id ? resolveAd(db, p.id, data.ad_id) : null;
+    if (data.ad_id && (!ad || ad.id !== data.ad_id || !adset || ad.adset_id !== adset.adset_id))
+      return res.status(400).json({ error: 'O anúncio deve pertencer ao conjunto selecionado.' });
+    db.exec('BEGIN');
+    try {
+      // Backfill legacy references before replacing the resolved hierarchy.
+      const previous = db.prepare('SELECT * FROM sale_attribution WHERE sale_id=?').get(sale.id);
+      if (!isManualAttribution(db, sale.id))
+        saveSaleTracking(db, sale.id, '', previous?.adset_id, previous?.ad_id);
+      db.prepare('UPDATE sales SET campaign_id=? WHERE id=?').run(campaign.id, sale.id);
+      db.prepare(
+        'INSERT INTO sale_attribution(sale_id,adset_id,ad_id) VALUES(?,?,?) ON CONFLICT(sale_id) DO UPDATE SET adset_id=excluded.adset_id,ad_id=excluded.ad_id',
+      ).run(sale.id, data.adset_id, data.ad_id);
+      db.prepare(
+        'INSERT INTO manual_sale_attribution VALUES(?,?) ON CONFLICT(sale_id) DO UPDATE SET updated_at=excluded.updated_at',
+      ).run(sale.id, now());
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    res.json(reportSales(db, p.id, sale.day, sale.day).find((s) => s.id === sale.id));
   });
   app.get('/api/meta/entities/:level/:id', async (req, res) => {
     const p = project(z.string().parse(req.query.project));
@@ -674,6 +753,7 @@ export function createApp(db, options = {}) {
       .get(integration.id, data.order_id);
     const time = data.created_at || now();
     const sid = previous?.id || id('sale');
+    const manual = isManualAttribution(db, sid);
     let attributionAd = data.ad_id || data.utm_content || '',
       attributionSet = data.adset_id || data.utm_term || '';
     let queued = false;
@@ -692,7 +772,7 @@ export function createApp(db, options = {}) {
           const since = new Date(Date.now() - 7 * 86400000).toISOString();
           const attribution = db
             .prepare(
-              "SELECT e.utm_source,e.utm_campaign,d.utm_content,d.utm_term FROM events e LEFT JOIN event_details d ON d.event_id=e.id WHERE e.project_id=? AND e.visitor_id=? AND e.created_at>=? AND e.utm_source NOT IN ('direct','') ORDER BY e.created_at DESC LIMIT 1",
+              "SELECT e.utm_source,e.utm_campaign,d.utm_medium,d.utm_content,d.utm_term FROM events e LEFT JOIN event_details d ON d.event_id=e.id WHERE e.project_id=? AND e.visitor_id=? AND e.created_at>=? AND e.utm_source NOT IN ('direct','') ORDER BY e.created_at DESC LIMIT 1",
             )
             .get(integration.project_id, data.visitor_id, since);
           if (attribution) {
@@ -700,6 +780,9 @@ export function createApp(db, options = {}) {
             campaignName = attribution.utm_campaign;
             attributionAd ||= attribution.utm_content || '';
             attributionSet ||= attribution.utm_term || '';
+            data.utm_medium ||= attribution.utm_medium || '';
+            data.utm_content ||= attribution.utm_content || '';
+            data.utm_term ||= attribution.utm_term || '';
           }
         }
         const attributed = campaign || resolveCampaign(db, integration.project_id, campaignName);
@@ -725,10 +808,11 @@ export function createApp(db, options = {}) {
       }
       const ad = resolveAd(db, integration.project_id, attributionAd);
       const adset = ad || resolveAdset(db, integration.project_id, attributionSet);
-      if (adset)
+      if (adset && !manual)
         db.prepare('UPDATE sales SET campaign_id=? WHERE id=?').run(adset.campaign_id, sid);
+      saveSaleTracking(db, sid, data.utm_term, attributionSet, attributionAd);
       db.prepare(
-        'INSERT INTO sale_attribution VALUES(?,?,?,?) ON CONFLICT(sale_id) DO UPDATE SET visitor_id=COALESCE(excluded.visitor_id,sale_attribution.visitor_id),adset_id=COALESCE(excluded.adset_id,sale_attribution.adset_id),ad_id=COALESCE(excluded.ad_id,sale_attribution.ad_id)',
+        `INSERT INTO sale_attribution VALUES(?,?,?,?) ON CONFLICT(sale_id) DO UPDATE SET visitor_id=COALESCE(excluded.visitor_id,sale_attribution.visitor_id)${manual ? '' : ',adset_id=COALESCE(excluded.adset_id,sale_attribution.adset_id),ad_id=COALESCE(excluded.ad_id,sale_attribution.ad_id)'}`,
       ).run(
         sid,
         data.visitor_id || null,

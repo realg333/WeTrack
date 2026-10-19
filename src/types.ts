@@ -32,6 +32,15 @@ export type Campaign = Metrics & {
 };
 export type Sale = {
   id: string;
+  project_id: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  adset_id: string | null;
+  adset_name: string | null;
+  ad_id: string | null;
+  ad_name: string | null;
+  attribution_method: 'automatic' | 'manual' | 'unattributed';
+  attribution_updated_at: string | null;
   external_id: string;
   customer_name: string;
   customer_email: string;
@@ -41,8 +50,18 @@ export type Sale = {
   payment_method: string;
   utm_source: string;
   utm_campaign: string;
+  utm_medium: string;
+  utm_content: string;
+  utm_term: string | null;
+  adset_reference: string | null;
+  ad_reference: string | null;
   created_at: string;
   day: string;
+};
+export type AttributionOptions = {
+  campaigns: { id: string; name: string; external_id: string | null; account_id: string | null }[];
+  adsets: { id: string; name: string; campaign_id: string; external_id: string | null }[];
+  ads: { id: string; name: string; adset_id: string; external_id: string | null }[];
 };
 export type Rule = {
   id: string;

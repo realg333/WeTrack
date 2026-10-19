@@ -61,6 +61,7 @@ import IntegrationsPage from './Integrations';
 import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
 import ConversionFunnel from './ConversionFunnel';
+import SaleAttribution from './SaleAttribution';
 import type { Dashboard, Page, Project, Sale } from './types';
 
 const navigation = [
@@ -254,6 +255,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
   const changeProject = (value: string) => {
+    setSelectedSale(null);
     setProject(value);
     localStorage.setItem('wt_project', value);
   };
@@ -1131,7 +1133,7 @@ export default function App() {
                 paymentName[selectedSale.payment_method] || selectedSale.payment_method,
               ],
               ['Origem', sourceName(selectedSale.utm_source)],
-              ['Campanha', selectedSale.utm_campaign || 'Sem atribuição'],
+              ['Campanha atribuída', selectedSale.campaign_name || 'Sem atribuição'],
               ['Data', dateTime(selectedSale.created_at)],
             ].map(([label, value]) => (
               <div key={label}>
@@ -1140,6 +1142,15 @@ export default function App() {
               </div>
             ))}
           </dl>
+          <SaleAttribution
+            key={`${project}:${selectedSale.id}`}
+            sale={selectedSale}
+            onSaved={(sale) => {
+              setSelectedSale(sale);
+              notify('Atribuição da venda salva.');
+              void load(true);
+            }}
+          />
         </Modal>
       )}
       {searchOpen && (
@@ -1254,6 +1265,7 @@ function SalesTable({
           <tr>
             <th>Produto / Cliente</th>
             {!compact && <th>Origem</th>}
+            {!compact && <th>Atribuição</th>}
             <th>Valor</th>
             <th>Status</th>
             <th>
@@ -1285,6 +1297,16 @@ function SalesTable({
                   </span>
                 </td>
               )}
+              {!compact && (
+                <td className="sale-attribution-cell">
+                  <strong>{s.campaign_name || 'Sem atribuição'}</strong>
+                  <small>
+                    {[s.adset_name, s.ad_name].filter(Boolean).join(' / ') ||
+                      (s.campaign_id ? 'Somente campanha' : 'Atribua esta venda')}
+                  </small>
+                  {s.attribution_method === 'manual' && <Badge tone="neutral">Manual</Badge>}
+                </td>
+              )}
               <td className="amount-cell">
                 {brl(s.amount)}
                 <small>{paymentName[s.payment_method]}</small>
@@ -1303,6 +1325,9 @@ function SalesTable({
                   }}
                 >
                   <ArrowUpRight size={15} />
+                  {!compact && !s.campaign_id && (
+                    <span className="sale-assign-label">Atribuir</span>
+                  )}
                 </button>
               </td>
             </tr>
@@ -1329,15 +1354,17 @@ function SalesPage({
 }) {
   const [query, setQuery] = useState(''),
     [status, setStatus] = useState('all'),
+    [attribution, setAttribution] = useState('all'),
     [page, setPage] = useState(1);
   const filtered = data.sales.filter(
     (s) =>
       (status === 'all' || s.status === status) &&
-      `${s.product} ${s.customer_name} ${s.external_id} ${s.utm_campaign}`
+      (attribution === 'all' || s.attribution_method === attribution) &&
+      `${s.product} ${s.customer_name} ${s.external_id} ${s.utm_source} ${s.utm_medium} ${s.utm_campaign} ${s.utm_term || ''} ${s.utm_content} ${s.campaign_name || ''} ${s.adset_name || ''} ${s.ad_name || ''} ${s.adset_reference || ''} ${s.ad_reference || ''}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
-  useEffect(() => setPage(1), [query, status, data]);
+  useEffect(() => setPage(1), [query, status, attribution, data]);
   return (
     <>
       <div className="sales-summary">
@@ -1382,7 +1409,26 @@ function SalesPage({
             className="button secondary"
             onClick={() => {
               downloadCsv('wetrack-vendas.csv', [
-                ['Pedido', 'Produto', 'Cliente', 'Valor', 'Status', 'Origem', 'Campanha', 'Data'],
+                [
+                  'Pedido',
+                  'Produto',
+                  'Cliente',
+                  'Valor',
+                  'Status',
+                  'Origem',
+                  'Campanha atribuída',
+                  'Conjunto atribuído',
+                  'Anúncio atribuído',
+                  'Atribuição',
+                  'utm_source',
+                  'utm_medium',
+                  'utm_campaign',
+                  'utm_term',
+                  'utm_content',
+                  'Referência conjunto',
+                  'Referência anúncio',
+                  'Data',
+                ],
                 ...filtered.map((s) => [
                   s.external_id,
                   s.product,
@@ -1390,7 +1436,21 @@ function SalesPage({
                   s.amount,
                   statusLabel[s.status],
                   s.utm_source,
+                  s.campaign_name || '',
+                  s.adset_name || '',
+                  s.ad_name || '',
+                  s.attribution_method === 'manual'
+                    ? 'Manual'
+                    : s.campaign_id
+                      ? 'Automática'
+                      : 'Sem atribuição',
+                  s.utm_source,
+                  s.utm_medium,
                   s.utm_campaign,
+                  s.utm_term || '',
+                  s.utm_content,
+                  s.adset_reference || '',
+                  s.ad_reference || '',
                   s.created_at,
                 ]),
               ]);
@@ -1407,6 +1467,16 @@ function SalesPage({
             onChange={setQuery}
             placeholder="Buscar por produto, cliente ou pedido…"
           />
+          <select
+            aria-label="Filtrar atribuição"
+            value={attribution}
+            onChange={(e) => setAttribution(e.target.value)}
+          >
+            <option value="all">Todas as atribuições</option>
+            <option value="unattributed">Sem atribuição</option>
+            <option value="manual">Atribuição manual</option>
+            <option value="automatic">Atribuição automática</option>
+          </select>
           <span className="muted">{number(filtered.length)} vendas encontradas</span>
         </div>
         {filtered.length ? (

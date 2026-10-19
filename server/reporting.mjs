@@ -11,7 +11,17 @@ export function visibleCampaigns(db, projectId) {
 export function reportSales(db, projectId, start, end) {
   return db
     .prepare(
-      `SELECT s.*,sa.visitor_id,sa.adset_id,sa.ad_id FROM sales s LEFT JOIN campaigns c ON c.id=s.campaign_id LEFT JOIN sale_attribution sa ON sa.sale_id=s.id WHERE s.project_id=? AND s.day BETWEEN ? AND ? AND (c.id IS NULL OR (${campaignVisible})) ORDER BY s.created_at DESC`,
+      `SELECT s.*,sa.visitor_id,sa.adset_id,sa.ad_id,c.name AS campaign_name,
+        a.name AS adset_name,ad.name AS ad_name,st.utm_term,st.adset_reference,st.ad_reference,
+        ma.updated_at AS attribution_updated_at,
+        CASE WHEN ma.sale_id IS NOT NULL THEN 'manual' WHEN s.campaign_id IS NOT NULL THEN 'automatic' ELSE 'unattributed' END AS attribution_method
+      FROM sales s LEFT JOIN campaigns c ON c.id=s.campaign_id
+      LEFT JOIN sale_attribution sa ON sa.sale_id=s.id
+      LEFT JOIN ad_sets a ON a.id=sa.adset_id AND a.campaign_id=s.campaign_id
+      LEFT JOIN ads ad ON ad.id=sa.ad_id AND ad.adset_id=a.id
+      LEFT JOIN sale_tracking st ON st.sale_id=s.id
+      LEFT JOIN manual_sale_attribution ma ON ma.sale_id=s.id
+      WHERE s.project_id=? AND s.day BETWEEN ? AND ? AND (c.id IS NULL OR (${campaignVisible})) ORDER BY s.created_at DESC`,
     )
     .all(projectId, start, end);
 }

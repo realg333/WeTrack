@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { dateKey } from './domain.mjs';
-import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
+import {
+  resolveCampaign,
+  resolveAd,
+  resolveAdset,
+  isManualAttribution,
+  saveSaleTracking,
+} from './attribution.mjs';
 
 export function recordSale(db, meta, integration, input, options = {}) {
   let data = { ...input };
@@ -61,6 +67,8 @@ export function recordSale(db, meta, integration, input, options = {}) {
         attributionAd ||= attribution.utm_content || '';
         attributionSet ||= attribution.utm_term || '';
         data.utm_medium ||= attribution.utm_medium || '';
+        data.utm_content ||= attribution.utm_content || '';
+        data.utm_term ||= attribution.utm_term || '';
       }
     }
     const campaign = resolveCampaign(db, integration.project_id, campaignName);
@@ -74,6 +82,7 @@ export function recordSale(db, meta, integration, input, options = {}) {
             .slice(0, 32)
         : 'sale_' + randomUUID().replaceAll('-', '').slice(0, 16));
     const time = data.created_at || now;
+    const manual = isManualAttribution(db, sid);
     if (previous) {
       db.prepare(
         'UPDATE sales SET status=?,amount=?,utm_source=?,utm_campaign=?,utm_medium=?,utm_content=?,campaign_id=COALESCE(campaign_id,?),customer_email=COALESCE(customer_email,?),customer_name=?,payment_method=? WHERE id=?',
@@ -84,7 +93,7 @@ export function recordSale(db, meta, integration, input, options = {}) {
         previous.utm_campaign || campaignName,
         previous.utm_medium || data.utm_medium,
         previous.utm_content || data.utm_content,
-        campaign?.id || null,
+        manual ? null : campaign?.id || null,
         data.customer_email || null,
         previous.customer_name === 'Cliente' ? data.customer_name : previous.customer_name,
         previous.payment_method === 'other' ? data.payment_method : previous.payment_method,
@@ -112,9 +121,11 @@ export function recordSale(db, meta, integration, input, options = {}) {
       );
     const ad = resolveAd(db, integration.project_id, attributionAd),
       adset = ad || resolveAdset(db, integration.project_id, attributionSet);
-    if (adset) db.prepare('UPDATE sales SET campaign_id=? WHERE id=?').run(adset.campaign_id, sid);
+    if (adset && !manual)
+      db.prepare('UPDATE sales SET campaign_id=? WHERE id=?').run(adset.campaign_id, sid);
+    saveSaleTracking(db, sid, data.utm_term, attributionSet, attributionAd);
     db.prepare(
-      'INSERT INTO sale_attribution VALUES(?,?,?,?) ON CONFLICT(sale_id) DO UPDATE SET visitor_id=COALESCE(excluded.visitor_id,sale_attribution.visitor_id),adset_id=COALESCE(excluded.adset_id,sale_attribution.adset_id),ad_id=COALESCE(excluded.ad_id,sale_attribution.ad_id)',
+      `INSERT INTO sale_attribution VALUES(?,?,?,?) ON CONFLICT(sale_id) DO UPDATE SET visitor_id=COALESCE(excluded.visitor_id,sale_attribution.visitor_id)${manual ? '' : ',adset_id=COALESCE(excluded.adset_id,sale_attribution.adset_id),ad_id=COALESCE(excluded.ad_id,sale_attribution.ad_id)'}`,
     ).run(
       sid,
       data.visitor_id || null,

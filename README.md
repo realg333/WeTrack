@@ -38,6 +38,8 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 - Edição de nome e status de campanhas, conjuntos e anúncios na Meta, e ajuste de orçamento diário ou total no nível que já controla o orçamento, com confirmação explícita da conta e do resultado.
 - Pixel com PageView, eventos manuais, autorização por domínio, identificador de visitante e preservação/propagação de UTMs por sete dias.
 - API de vendas com tokens exclusivos, atualização de status, deduplicação e recuperação de atribuição pelo visitante.
+- Atribuição manual das vendas por campanha, conjunto e anúncio, com consulta às UTMs recebidas, filtro de vendas sem atribuição e exportação da origem. A correção é preservada em webhooks e sincronizações posteriores.
+- Padrão de UTMs para Facebook Ads pronto para copiar em Integrações → UTMs.
 - Webhooks nativos Cakto V1/V2, Hotmart 2.0.0 e Blackcat, com tutoriais, credenciais criptografadas, teste sem receita, fila persistente, histórico de entregas e escolha do responsável por Purchase.
 - CAPI opcional: tokens criptografados, contato com SHA-256, fila persistente, ID estável e até cinco tentativas com espera progressiva.
 - Histórico de envios CAPI, confirmação de recebimento pela Meta e reenvio de falhas.
@@ -88,6 +90,10 @@ No aplicativo Meta, cadastre exatamente `https://SEU-DOMINIO/api/meta/oauth/call
 Em **Integrações → Meta Ads → Copiar link de conexão**, gere e copie o link para o Multilogin. Ele vale por 15 minutos e é de uso único. Conclua o consentimento no mesmo navegador, volte ao painel, atualize as contas e selecione as desejadas. O retorno usa estado aleatório e cookie seguro para conferir a sessão; credenciais ficam criptografadas no servidor. O Multilogin não recebe uma sessão administrativa da WeTrack. Os testes automatizados do fluxo usam transporte simulado; a autorização de cada perfil real depende da Meta.
 
 ## Campanhas, funil e visitas
+
+Em **Integrações → UTMs → Padrão para Facebook Ads**, copie `utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}` e cole no campo **Parâmetros de URL** de cada anúncio, sem `?`. A Meta substitui os parâmetros pelos IDs na veiculação. Sincronize as campanhas e instale o pixel WeTrack na página para preservar a origem até o checkout; o recebimento das UTMs depende do conector de vendas.
+
+Em **Vendas**, use **Filtrar atribuição → Sem atribuição** para localizar pedidos que precisam de revisão. Nos detalhes, consulte as cinco UTMs e as referências recebidas, selecione campanha, conjunto e anúncio e clique em **Salvar atribuição**. É possível atribuir somente à campanha ou ao conjunto. Os seletores mostram nomes e IDs, inclusive itens pausados de contas selecionadas. Mudar a campanha limpa conjunto e anúncio; mudar o conjunto limpa o anúncio. A atribuição manual atualiza os relatórios e permanece após reenvios do webhook e sincronizações, preservando as UTMs para consulta. As UTMs de pedidos antigos que não foram armazenadas não podem ser reconstruídas.
 
 - **Campanhas:** três abas: Campanhas → Conjuntos de anúncios → Anúncios. Clique no nome para avançar, use o caminho superior para voltar ou limpe a seleção. Anúncios abrem detalhes; filtros e exportação usam o nível exibido. Campanhas manuais não possuem filhos inventados.
 - **Funil Meta:** cliques no link, visitas de página e checkout da Marketing API; pedidos e vendas aprovadas dos webhooks atribuídos às campanhas selecionadas. **Funil Site:** sessões, visitantes e intenção de checkout do pixel; pedidos e aprovações dos webhooks da operação. São totais do período, não uma coorte garantida de pessoas. Não há preenchimento artificial de etapas sem dados.
