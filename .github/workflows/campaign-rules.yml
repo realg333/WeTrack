@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: '2-59/5 * * * *'
   workflow_dispatch:
+    inputs:
+      check_only:
+        description: 'Somente verificar conexão e autenticação, sem executar regras'
+        type: boolean
+        default: true
 permissions: {}
 concurrency:
   group: campaign-rules-production
@@ -15,6 +20,7 @@ jobs:
       - name: Sincronizar e avaliar regras
         env:
           RULES_CRON_SECRET: ${{ secrets.WETRACK_RULES_CRON_SECRET }}
+          RULES_CHECK_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only && '1' || '0' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -24,4 +30,4 @@ jobs:
           fi
           curl --silent --show-error --fail-with-body --max-time 240 \
             --header "Authorization: Bearer $RULES_CRON_SECRET" \
-            'https://wetrack-psi.vercel.app/api/internal/rules-run'
+            "https://wetrack-psi.vercel.app/api/internal/rules-run?check_only=$RULES_CHECK_ONLY"

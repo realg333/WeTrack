@@ -162,6 +162,11 @@ export function createApp(db, options = {}) {
       )
     )
       return res.status(401).json({ error: 'Não autorizado.' });
+    const checkOnly = z.enum(['0', '1']).optional().parse(req.query.check_only);
+    if (checkOnly === '1') {
+      db.prepare('SELECT COUNT(*) AS count FROM rule_configs').get();
+      return res.json({ ok: true, check_only: true });
+    }
     const results = await rules.runAll();
     res
       .status(results.some((r) => r.failures) ? 502 : 200)

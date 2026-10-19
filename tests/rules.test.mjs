@@ -379,12 +379,30 @@ test('scope restrictions and the global pause cooldown apply to new resume rules
 
 test('rule HTTP endpoints require sessions, isolate operations and protect the scheduler secret', async (t) => {
   const f = fixture(t),
-    server = createApp(f.db, { password: 'test-rules', serverless: true }).listen(0, '127.0.0.1');
+    app = createApp(f.db, { password: 'test-rules', serverless: true }),
+    server = app.listen(0, '127.0.0.1');
   await new Promise((r) => server.once('listening', r));
   t.after(() => new Promise((r) => server.close(r)));
   const base = `http://127.0.0.1:${server.address().port}/api`;
   assert.equal((await fetch(`${base}/rules?project=workspace`)).status, 401);
   assert.equal((await fetch(`${base}/internal/rules-run`)).status, 401);
+  const previousSecret = process.env.RULES_CRON_SECRET;
+  process.env.RULES_CRON_SECRET = 'scheduler-test-secret';
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.RULES_CRON_SECRET;
+    else process.env.RULES_CRON_SECRET = previousSecret;
+  });
+  let schedulerInvoked = false;
+  app.locals.rules.runAll = async () => {
+    schedulerInvoked = true;
+    return [];
+  };
+  const diagnostic = await fetch(`${base}/internal/rules-run?check_only=1`, {
+    headers: { Authorization: 'Bearer scheduler-test-secret' },
+  });
+  assert.equal(diagnostic.status, 200);
+  assert.deepEqual(await diagnostic.json(), { ok: true, check_only: true });
+  assert.equal(schedulerInvoked, false, 'diagnostics cannot run or mutate campaigns');
   const login = await fetch(`${base}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
