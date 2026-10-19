@@ -1,0 +1,27 @@
+name: Verificar regras de campanhas
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: campaign-rules-production
+  cancel-in-progress: false
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sincronizar e avaliar regras
+        env:
+          RULES_CRON_SECRET: ${{ secrets.WETRACK_RULES_CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$RULES_CRON_SECRET" ]; then
+            echo "Configure WETRACK_RULES_CRON_SECRET nos secrets do repositório."
+            exit 1
+          fi
+          curl --silent --show-error --fail-with-body --max-time 240 \
+            --header "Authorization: Bearer $RULES_CRON_SECRET" \
+            'https://wetrack-psi.vercel.app/api/internal/rules-run'
