@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { dateKey } from './domain.mjs';
 import { saveSaleCurrency } from './currencies.mjs';
+import { rememberSaleIdentity } from './whatsapp-sales.mjs';
 import {
   resolveCampaign,
   resolveAd,
@@ -138,6 +139,7 @@ export function recordSale(db, meta, integration, input, options = {}) {
       db.prepare(
         'INSERT INTO provider_orders VALUES(?,?,?,?,?) ON CONFLICT(project_id,provider,external_id) DO UPDATE SET updated_at=excluded.updated_at',
       ).run(integration.project_id, options.provider, data.order_id, sid, happened);
+    rememberSaleIdentity(db, sid, integration.project_id, data);
     db.prepare('UPDATE integrations SET last_used=? WHERE id=?').run(now, integration.id);
     const queued =
       data.status === 'approved' && previous?.status !== 'approved' && !options.skipCapi

@@ -237,6 +237,74 @@ export const columns: Column[] = [
     ],
     ['trials', 'Testes iniciados', 'number', 'Visitantes com StartTrial.'],
   ]),
+  ...group('WhatsApp · Conversas recebidas', [
+    [
+      'wa_conversations',
+      'Conversas iniciadas · WhatsApp',
+      'number',
+      'Sessões com mensagem recebida. Nova sessão após 24h de inatividade ou outra origem identificada.',
+    ],
+    [
+      'wa_contacts',
+      'Contatos · WhatsApp',
+      'number',
+      'Contatos distintos nas conversas iniciadas no período, por entidade.',
+    ],
+    [
+      'wa_qualified',
+      'Qualificados · WhatsApp',
+      'number',
+      'Etapa atual dos contatos das conversas iniciadas no período.',
+    ],
+    [
+      'wa_negotiating',
+      'Negociando · WhatsApp',
+      'number',
+      'Etapa atual dos contatos das conversas iniciadas no período.',
+    ],
+    [
+      'wa_lost',
+      'Perdidos · WhatsApp',
+      'number',
+      'Etapa atual dos contatos das conversas iniciadas no período.',
+    ],
+    [
+      'wa_buyers',
+      'Compradores · WhatsApp',
+      'number',
+      'Contatos das conversas do período com compra aprovada até o fim do período.',
+    ],
+    [
+      'wa_converted',
+      'Conversas com compra · WhatsApp',
+      'number',
+      'Conversas iniciadas no período com pedido aprovado vinculado até o fim do período.',
+    ],
+    [
+      'wa_sales',
+      'Vendas da coorte · WhatsApp',
+      'number',
+      'Pedidos aprovados no período vinculados às conversas iniciadas nesse período.',
+    ],
+    [
+      'wa_revenue',
+      'Receita da coorte · WhatsApp',
+      'money',
+      'Receita aprovada no período vinculada às conversas iniciadas nesse período; não somar ao faturamento geral.',
+    ],
+    [
+      'wa_cost_per_conversation',
+      'Custo por conversa · WhatsApp',
+      'money',
+      'Investimento da entidade ÷ conversas atribuídas iniciadas no período.',
+    ],
+    [
+      'wa_conversion',
+      'Conversão de conversa · WhatsApp',
+      'percent',
+      'Conversas com compra aprovada ÷ conversas iniciadas no período × 100.',
+    ],
+  ]),
 ];
 export const templates: Record<string, string[]> = {
   Desempenho: ['budget', 'spend', 'revenue', 'roas', 'sales', 'cpa', 'clicks'],
@@ -286,6 +354,17 @@ export const templates: Record<string, string[]> = {
     'sales',
     'revenue',
   ],
+  'Conversas e vendas': [
+    'spend',
+    'wa_conversations',
+    'wa_contacts',
+    'wa_cost_per_conversation',
+    'wa_qualified',
+    'wa_negotiating',
+    'wa_converted',
+    'wa_conversion',
+    'wa_revenue',
+  ],
 };
 export const metric = (row: HierarchyRow, id: string): number | null => {
   const v = (row as unknown as Record<string, unknown>)[id];
@@ -320,6 +399,8 @@ const derived: Record<string, [string, string, number?]> = {
   checkout_conversion: ['sales', 'checkouts', 100],
   checkout_cost: ['spend', 'checkouts'],
   cpl: ['spend', 'leads'],
+  wa_cost_per_conversation: ['spend', 'wa_conversations'],
+  wa_conversion: ['wa_converted', 'wa_conversations', 100],
 };
 export function totalMetric(rows: HierarchyRow[], id: string): number | null {
   if (['budget', 'avg_duration', 'avg_active', 'avg_scroll'].includes(id)) return null;

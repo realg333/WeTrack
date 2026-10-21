@@ -139,8 +139,9 @@ test('real workspace: pixel, token, webhook sale, UTM builder and rules', async 
 test('installed pixel tracks visits, keeps attribution and propagates UTMs to links', async ({
   page,
   request,
+  baseURL,
 }) => {
-  const domain = 'http://127.0.0.1:5174';
+  const domain = new URL(baseURL).origin;
   const response = await request.post('/api/pixels', {
     data: { name: 'Pixel instalado', domain, project_id: 'workspace' },
   });

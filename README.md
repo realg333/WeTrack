@@ -43,9 +43,10 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 - Webhooks nativos Cakto V1/V2, Hotmart 2.0.0 e Blackcat, com tutoriais, credenciais criptografadas, teste sem receita, fila persistente, histórico de entregas e escolha do responsável por Purchase.
 - CAPI opcional: tokens criptografados, contato com SHA-256, fila persistente, ID estável e até cinco tentativas com espera progressiva.
 - Histórico de envios CAPI, confirmação de recebimento pela Meta e reenvio de falhas.
-- Colunas personalizáveis em campanhas, conjuntos e anúncios, com busca, fórmulas, ordenação, cinco modelos iniciais, modelos próprios por operação e exportação da seleção.
+- Colunas personalizáveis em campanhas, conjuntos e anúncios, com busca, fórmulas, ordenação, seis modelos iniciais, modelos próprios por operação e exportação da seleção.
 - Catálogo ampliado de métricas financeiras, tráfego, funil Meta, site, comportamento, comércio, leads e WhatsApp; taxas totais recalculadas e dados indisponíveis identificados.
 - Central em **Integrações → Rastreamento**: atividade por evento/origem, smart links, referências de WhatsApp, registro manual e CAPI opcional para eventos do funil.
+- **WhatsApp**: conector oficial com teste, contatos, conversas recebidas, origem por anúncio/smart link, etapas comerciais e conciliação com pedidos aprovados. Compatível com atendimento no Business do celular mediante coexistência habilitada na Meta. [Ativação e métricas](docs/whatsapp.md).
 - Eventos de comércio e personalizados com propriedades, formulários marcados sem leitura de campos, vídeo HTML, primeira origem, click IDs de outras redes e API para CRM/offline.
 - Recepção de pedidos no formato UTMify em `/api/compat/utmify`, com token WeTrack, modo de teste e BRL em centavos. [Contratos, fontes, fórmulas e limites](docs/metrics-and-tracking.md).
 - Alertas de indicadores no painel, notificações internas, preferências, temas e layout responsivo.

@@ -74,7 +74,7 @@ test('installed head pixel records checkout return, time and scrolling in the vi
   await expect(
     dialog.getByText('Clicou para iniciar checkout (IC)', { exact: true }),
   ).toBeVisible();
-  await expect(dialog.getByText(/Tempo visível:.*Rolagem: 100%/)).toBeVisible();
+  await expect(dialog.getByText(/Tempo visível:.*Rolagem: 100%/).first()).toBeVisible();
   await page.screenshot({
     path: 'test-results/visitor-journey.png',
     fullPage: true,

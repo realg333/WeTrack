@@ -39,6 +39,7 @@ const labels: Record<string, string> = {
   VideoProgress: 'Avançou no vídeo',
   VideoComplete: 'Concluiu vídeo',
   LinkClick: 'Abriu smart link',
+  ConversationStarted: 'Iniciou conversa no WhatsApp',
 };
 const durationLabel = (ms: number) => {
   const seconds = Math.floor(ms / 1000);

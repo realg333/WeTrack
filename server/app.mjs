@@ -42,6 +42,8 @@ import {
 import { normalizeUtmify } from './utmify-format.mjs';
 import { saveSaleCurrency } from './currencies.mjs';
 import { feeSchema, readFees } from './fees.mjs';
+import { rememberSaleIdentity } from './whatsapp-sales.mjs';
+import { registerWhatsApp } from './whatsapp.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -89,7 +91,11 @@ export function createApp(db, options = {}) {
       limit: '256kb',
       type: ['application/json', 'text/plain'],
       verify: (req, _res, body) => {
-        if (req.originalUrl.startsWith('/api/webhooks/')) req.rawBody = Buffer.from(body);
+        if (
+          req.originalUrl.startsWith('/api/webhooks/') ||
+          req.originalUrl.startsWith('/api/whatsapp/webhook/')
+        )
+          req.rawBody = Buffer.from(body);
       },
     }),
   );
@@ -111,6 +117,7 @@ export function createApp(db, options = {}) {
     req.path.startsWith('/api/r/') ||
     req.path === '/api/track-events' ||
     req.path === '/api/compat/utmify' ||
+    req.path.startsWith('/api/whatsapp/webhook/') ||
     req.path.startsWith('/api/meta/oauth/start/') ||
     req.path === '/api/meta/oauth/callback' ||
     req.path === '/api/internal/capi-drain' ||
@@ -141,6 +148,12 @@ export function createApp(db, options = {}) {
     next();
   });
   registerTracking(app, db, { project, range, meta });
+  registerWhatsApp(app, db, {
+    project,
+    range,
+    key: secretKey,
+    transport: options.transport || fetch,
+  });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   if (options.storageCheck)
     app.get('/api/internal/storage-check', async (req, res) => {
@@ -922,6 +935,7 @@ export function createApp(db, options = {}) {
         adset?.adset_id || attributionSet || null,
         ad?.id || attributionAd || null,
       );
+      rememberSaleIdentity(db, sid, integration.project_id, data);
       db.prepare('UPDATE integrations SET last_used=? WHERE id=?').run(now(), integration.id);
       queued =
         data.status === 'approved' && previous?.status !== 'approved'
@@ -1087,7 +1101,8 @@ export function createApp(db, options = {}) {
     res.json({ ok: true });
   });
   app.get('/pixel.js', (_req, res) =>
-    res.type('application/javascript').sendFile(resolve('server/pixel.js')),
+    // Only this fixed file is exposed, including when the checkout lives inside .codex.
+    res.type('application/javascript').sendFile(resolve('server/pixel.js'), { dotfiles: 'allow' }),
   );
   if (existsSync(resolve('dist/index.html'))) {
     app.use(express.static(resolve('dist')));

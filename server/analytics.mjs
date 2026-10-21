@@ -1,6 +1,7 @@
 import { money, summarize } from './domain.mjs';
 import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
 import { readFees } from './fees.mjs';
+import { whatsAppMetricRows } from './whatsapp-reporting.mjs';
 
 const divide = (a, b, multiplier = 1) => (a != null && b ? (a / b) * multiplier : null);
 export function metricValues(sales, spend, impressions, clicks, events = [], meta = [], fees) {
@@ -137,9 +138,11 @@ export function analyticsData(db, projectId, start, end) {
 export function enrichRows(db, projectId, start, end, level, rows, sales) {
   const fees = readFees(db, projectId);
   const { events, meta } = analyticsData(db, projectId, start, end);
+  const whatsapp = whatsAppMetricRows(db, projectId, start, end, level, rows);
   const key = level === 'campaigns' ? 'campaign_id' : level === 'adsets' ? 'adset_id' : 'ad_id';
   return rows.map((row) => ({
     ...row,
+    ...whatsapp.get(row.id),
     ...metricValues(
       sales.filter((s) => s[key] === row.id || (row.external_id && s[key] === row.external_id)),
       row.spend,

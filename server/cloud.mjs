@@ -42,6 +42,14 @@ export const cloudTables = [
   'provider_orders',
   'webhook_receipts',
   'checkout_refs',
+  'wa_connections',
+  'wa_contacts',
+  'wa_conversations',
+  'wa_messages',
+  'wa_stage_history',
+  'wa_receipts',
+  'sale_identity',
+  'wa_sale_links',
 ];
 export function cloudCredentials(env = process.env) {
   for (const prefix of ['', 'DATABASE_']) {

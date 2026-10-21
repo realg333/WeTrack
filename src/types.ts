@@ -3,6 +3,7 @@ export type Page =
   | 'campaigns'
   | 'sales'
   | 'visits'
+  | 'whatsapp'
   | 'rules'
   | 'integrations'
   | 'notifications'

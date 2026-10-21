@@ -54,6 +54,7 @@ const channels: Record<string, string> = {
   server: 'API / CRM',
   manual: 'Manual',
   smart_link: 'Smart link',
+  whatsapp: 'WhatsApp oficial',
 };
 export default function TrackingCenter({ project, notify }: { project: string; notify: Toast }) {
   const [data, setData] = useState<Tracking | null>(null),

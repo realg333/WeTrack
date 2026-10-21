@@ -18,6 +18,7 @@ import {
   LogOut,
   Menu,
   Megaphone,
+  MessageCircle,
   MousePointer2,
   PanelLeftClose,
   Plus,
@@ -61,6 +62,7 @@ import RulesPage from './RulesPage';
 import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
 import ConversionFunnel from './ConversionFunnel';
+import WhatsAppPage from './WhatsAppPage';
 import SaleAttribution from './SaleAttribution';
 import FeeSettings from './FeeSettings';
 import type { Dashboard, Page, Project, Sale } from './types';
@@ -70,6 +72,7 @@ const navigation = [
   { id: 'campaigns', label: 'Campanhas', icon: Megaphone },
   { id: 'sales', label: 'Vendas', icon: ShoppingBag },
   { id: 'visits', label: 'Visitas e atribuição', icon: MousePointer2 },
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { id: 'rules', label: 'Regras e alertas', icon: Zap },
   { id: 'integrations', label: 'Integrações', icon: Link2 },
 ] as const;
@@ -78,6 +81,7 @@ const titles: Record<Page, string> = {
   campaigns: 'Campanhas',
   sales: 'Vendas',
   visits: 'Visitas e atribuição',
+  whatsapp: 'WhatsApp',
   rules: 'Regras e alertas',
   integrations: 'Integrações',
   notifications: 'Notificações',
@@ -88,6 +92,7 @@ const descriptions: Record<Page, string> = {
   campaigns: 'Entenda o que performa e encontre sua próxima escala.',
   sales: 'Cada venda tem uma história. Saiba de onde ela veio.',
   visits: 'Acompanhe o caminho entre o primeiro clique e a conversão.',
+  whatsapp: 'Do primeiro contato à compra, mantendo seu atendimento no aplicativo.',
   rules: 'Seus indicadores certos, sempre no seu radar.',
   integrations: 'Conecte sua operação. A WeTrack cuida dos dados.',
   notifications: 'As novidades e os sinais da sua operação.',
@@ -814,6 +819,7 @@ export default function App() {
               {page === 'visits' && (
                 <VisitorsPage data={data} onConnect={() => navigate('integrations')} />
               )}
+              {page === 'whatsapp' && <WhatsAppPage key={project} data={data} notify={notify} />}
               {page === 'rules' && (
                 <RulesPage
                   key={`${project}:${currency}`}
