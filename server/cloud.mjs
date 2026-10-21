@@ -20,6 +20,8 @@ export const cloudTables = [
   'settings',
   'meta_connections',
   'meta_campaigns',
+  'campaign_currencies',
+  'sale_currencies',
   'pixel_capi',
   'integration_pixels',
   'capi_queue',

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dateKey, money } from './domain.mjs';
+import { saleCurrency } from './currencies.mjs';
 
 export const conditionSchema = z
   .object({
@@ -27,6 +28,7 @@ export const conditionSchema = z
 export const ruleSchema = z
   .object({
     project_id: z.string().min(1),
+    currency: z.enum(['BRL', 'USD']).default('BRL'),
     name: z.string().trim().min(3).max(100),
     action: z
       .enum(['alert', 'pause', 'stop', 'resume', 'increase_budget', 'decrease_budget'])
@@ -96,6 +98,7 @@ export function hydrateRule(row) {
     ...row,
     config: undefined,
     action: 'alert',
+    currency: 'BRL',
     conditions: [{ metric: row.metric, operator: row.operator, threshold: row.threshold }],
     period: 'today',
     campaign_ids: [],
@@ -123,9 +126,9 @@ export function ruleMetrics(db, campaign, period, clock) {
     .get(campaign.id, start, end);
   const orders = db
     .prepare(
-      "SELECT COUNT(*) AS sales,COALESCE(SUM(amount),0) AS revenue FROM sales WHERE campaign_id=? AND project_id=? AND status='approved' AND day BETWEEN ? AND ?",
+      `SELECT COUNT(*) AS sales,COALESCE(SUM(amount),0) AS revenue FROM sales s WHERE campaign_id=? AND project_id=? AND status='approved' AND day BETWEEN ? AND ? AND ${saleCurrency}=?`,
     )
-    .get(campaign.id, campaign.project_id, start, end);
+    .get(campaign.id, campaign.project_id, start, end, campaign.currency || 'BRL');
   return {
     spend: money(spend.spend),
     sales: orders.sales,
@@ -193,6 +196,7 @@ export function configuredRules(db, projectId) {
     .map(hydrateRule);
 }
 export function ruleTargets(db, rule, campaign) {
+  if ((rule.currency || 'BRL') !== (campaign.currency || 'BRL')) return false;
   if (rule.campaign_ids.length && !rule.campaign_ids.includes(campaign.id)) return false;
   if (rule.action === 'resume') return !campaign.active;
   if (rule.action === 'increase_budget' || rule.action === 'decrease_budget')

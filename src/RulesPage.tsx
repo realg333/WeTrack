@@ -240,25 +240,25 @@ const explanations: Record<Draft['action'], string> = {
   increase_budget:
     'Aumenta o orçamento da própria campanha na Meta. Conjunto com orçamento separado não entra. O teto impede a escala infinita. Uma regra de pausa, corte ou redução ainda atingida bloqueia o aumento.',
   decrease_budget:
-    'Reduz o orçamento da própria campanha na Meta. O piso segura o valor. Abaixo de R$ 1,00 a alteração não é enviada.',
+    'Reduz o orçamento da própria campanha na Meta. O piso segura o valor. Abaixo de 1,00 na moeda da conta a alteração não é enviada.',
 };
-function valueText(c: RuleCondition) {
+function valueText(c: RuleCondition, currency = 'BRL') {
   if (['sales', 'clicks', 'impressions'].includes(c.metric)) return String(c.threshold);
   if (c.metric === 'roas') return `${decimal(c.threshold)}x`;
   if (c.metric === 'ctr') return `${decimal(c.threshold)}%`;
-  return brl(c.threshold);
+  return brl(c.threshold, currency);
 }
-function ruleSentence(draft: Draft) {
+function ruleSentence(draft: Draft, currency = 'BRL') {
   const change = draft.budget_change;
   const budget =
     change && (draft.action === 'increase_budget' || draft.action === 'decrease_budget')
-      ? ` ${change.mode === 'percent' ? `${change.amount}%` : brl(change.amount)}`
+      ? ` ${change.mode === 'percent' ? `${change.amount}%` : brl(change.amount, currency)}`
       : '';
   const when = draft.conditions.length
     ? draft.conditions
         .map(
           (c, i) =>
-            `${i ? 'e ' : ''}quando ${metrics[c.metric]} for ${operators[c.operator].toLowerCase()} ${valueText(c)}`,
+            `${i ? 'e ' : ''}quando ${metrics[c.metric]} for ${operators[c.operator].toLowerCase()} ${valueText(c, currency)}`,
         )
         .join(' ')
     : draft.schedule_time
@@ -270,28 +270,33 @@ function budgetLine(rule: Rule) {
   const change = rule.budget_change;
   if (!change || (rule.action !== 'increase_budget' && rule.action !== 'decrease_budget'))
     return null;
-  const amount = change.mode === 'percent' ? `${change.amount}%` : brl(change.amount);
+  const amount =
+    change.mode === 'percent' ? `${change.amount}%` : brl(change.amount, rule.currency);
   const cap =
     change.limit == null
       ? ''
       : rule.action === 'increase_budget'
-        ? ` · teto ${brl(change.limit)}`
-        : ` · piso ${brl(change.limit)}`;
+        ? ` · teto ${brl(change.limit, rule.currency)}`
+        : ` · piso ${brl(change.limit, rule.currency)}`;
   return `${rule.action === 'increase_budget' ? 'Sobe' : 'Baixa'} ${amount}${cap}`;
 }
 export default function RulesPage({
   project,
+  currency = 'BRL',
   creating,
   onClose,
   notify,
   onDataChange,
 }: {
   project: string;
+  currency?: 'BRL' | 'USD';
   creating: boolean;
   onClose: () => void;
   notify: Toast;
   onDataChange: () => void;
 }) {
+  const formatMoney = (value: number) => brl(value, currency);
+  const symbol = currency === 'USD' ? 'US$' : 'R$';
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Rule | null>(null);
@@ -309,12 +314,14 @@ export default function RulesPage({
     revision = useRef(0);
   const load = useCallback(async () => {
     try {
-      setData(await api<Payload>(`/rules?project=${encodeURIComponent(project)}`));
+      setData(
+        await api<Payload>(`/rules?project=${encodeURIComponent(project)}&currency=${currency}`),
+      );
       setError('');
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [project]);
+  }, [project, currency]);
   useEffect(() => {
     void load();
     const timer = setInterval(() => void load(), 60000);
@@ -349,6 +356,7 @@ export default function RulesPage({
   const payload = () => ({
     ...draft,
     project_id: project,
+    currency,
     campaign_ids: scope === 'all' ? [] : draft.campaign_ids,
   });
   async function simulate() {
@@ -518,7 +526,9 @@ export default function RulesPage({
               {actions[r.action]} · {r.active ? 'Ativa' : 'Desativada'}
             </Badge>
             <h3>{r.name}</h3>
-            <p className="rule-sentence">{ruleSentence({ ...r, active: Boolean(r.active) })}</p>
+            <p className="rule-sentence">
+              {ruleSentence({ ...r, active: Boolean(r.active) }, currency)}
+            </p>
             {budgetLine(r) && <p>{budgetLine(r)}</p>}
             {r.action === 'alert' && (
               <p>
@@ -534,7 +544,7 @@ export default function RulesPage({
               {r.schedule_time && ` · Às ${r.schedule_time} (Brasília)`}
             </p>
             <p>
-              Gasto mínimo: {brl(r.min_spend)} · Intervalo: {r.cooldown_minutes} min
+              Gasto mínimo: {formatMoney(r.min_spend)} · Intervalo: {r.cooldown_minutes} min
             </p>
             {r.action === 'stop' && (
               <p>
@@ -670,7 +680,7 @@ export default function RulesPage({
                       <small>{r.message}</small>
                     </td>
                     <td>
-                      {brl(r.metrics.spend || 0)}
+                      {formatMoney(r.metrics.spend || 0)}
                       <small>
                         {r.metrics.sales || 0} venda(s) · ROAS{' '}
                         {r.metrics.roas == null ? '—' : `${decimal(r.metrics.roas)}x`}
@@ -832,11 +842,11 @@ export default function RulesPage({
                     }
                   >
                     <option value="percent">Percentual</option>
-                    <option value="fixed">Valor fixo (R$)</option>
+                    <option value="fixed">Valor fixo ({symbol})</option>
                   </select>
                 </label>
                 <label>
-                  {draft.budget_change.mode === 'percent' ? 'Percentual' : 'Valor (R$)'}
+                  {draft.budget_change.mode === 'percent' ? 'Percentual' : `Valor (${symbol})`}
                   <input
                     type="number"
                     required
@@ -859,8 +869,8 @@ export default function RulesPage({
                 </label>
                 <label>
                   {draft.action === 'increase_budget'
-                    ? 'Teto do orçamento (R$, opcional)'
-                    : 'Piso do orçamento (R$, opcional)'}
+                    ? `Teto do orçamento (${symbol}, opcional)`
+                    : `Piso do orçamento (${symbol}, opcional)`}
                   <input
                     type="number"
                     min="1"
@@ -962,7 +972,7 @@ export default function RulesPage({
                   Adicionar outra condição
                 </button>
               )}
-              <p className="rule-sentence">{ruleSentence(draft)}</p>
+              <p className="rule-sentence">{ruleSentence(draft, currency)}</p>
               <p>
                 CPA exige ao menos uma venda. ROAS exige gasto. Para campanhas sem vendas, combine
                 investimento com vendas iguais a zero.
@@ -970,7 +980,7 @@ export default function RulesPage({
             </fieldset>
             <div className="form-grid">
               <label>
-                Investimento mínimo (R$)
+                Investimento mínimo ({symbol})
                 <input
                   type="number"
                   min="0"
@@ -1096,13 +1106,13 @@ export default function RulesPage({
                   <div key={c.id}>
                     <b>{c.name}</b>
                     <span>
-                      {brl(c.metrics.spend || 0)} · {c.metrics.sales || 0} venda(s)
+                      {formatMoney(c.metrics.spend || 0)} · {c.metrics.sales || 0} venda(s)
                     </span>
                     {c.blocked && <small>{c.blocked}</small>}
                     {c.proposal != null && (
                       <small>
-                        Orçamento estimado {brl(c.budget)} para {brl(c.proposal)}. A execução usa o
-                        valor ao vivo na Meta.
+                        Orçamento estimado {formatMoney(c.budget)} para {formatMoney(c.proposal)}. A
+                        execução usa o valor ao vivo na Meta.
                       </small>
                     )}
                   </div>

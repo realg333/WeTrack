@@ -43,7 +43,7 @@ export const platformGuides = {
     attribution:
       'A Hotmart não entrega as UTMs estruturadas no webhook. Na sua página própria, o pixel WeTrack acrescenta um código curto em xcod nos links pay.hotmart.com quando esse campo está vazio. A venda usa purchase.origin.xcod para recuperar campanha, conjunto, anúncio e visitante. Preserve o código até o checkout; valide com uma compra autorizada. Um xcod já existente não será sobrescrito. Tráfego direto ao checkout ou redirecionamentos que removam esse código não ganham atribuição completa automaticamente.',
     notes:
-      'Aprovação e conclusão da mesma transaction representam uma única venda. Usamos purchase.price.value em BRL (valor da oferta na compra), não a comissão nem full_price, que pode incluir encargos. Recorrências e order bumps com transações próprias ficam separados. Cancelar assinatura não reembolsa parcelas anteriores. Reembolso parcial exige conciliação e não é tratado como devolução integral.',
+      'Aprovação e conclusão da mesma transaction representam uma única venda. Usamos purchase.price.value na moeda informada (BRL ou USD), não a comissão nem full_price, que pode incluir encargos. Recorrências e order bumps com transações próprias ficam separados. Cancelar assinatura não reembolsa parcelas anteriores. Reembolso parcial exige conciliação e não é tratado como devolução integral.',
     sources: [
       [
         'Eventos de pedido 2.0.0 e Hottok',

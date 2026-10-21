@@ -101,6 +101,7 @@ export default function CampaignManager({
       start: data.start,
       end: data.end,
       level,
+      currency: data.currency || 'BRL',
     });
     if (parent) params.set('parent', parent);
     api<{ rows: HierarchyRow[] }>(`/ad-hierarchy?${params}`)
@@ -123,7 +124,7 @@ export default function CampaignManager({
     setAdset(null);
     setSelected(null);
     setEditing(null);
-  }, [data.project.id]);
+  }, [data.project.id, data.currency]);
   const changeLevel = (value: Level) => {
     setLevel(value);
     setQuery('');
@@ -262,12 +263,13 @@ export default function CampaignManager({
               className="button secondary"
               disabled={loading || !filtered.length}
               onClick={() => {
-                downloadCsv(`wetrack-${level}.csv`, [
+                downloadCsv(`wetrack-${level}-${data.currency}.csv`, [
                   [
                     'Nome',
                     'Campanha',
                     'Conjunto',
                     'ID Meta',
+                    'Moeda',
                     ...visibleColumns.map((c) => c.label),
                   ],
                   ...filtered.map((c) => [
@@ -275,6 +277,7 @@ export default function CampaignManager({
                     c.campaign_name || c.name,
                     c.adset_name || '',
                     c.external_id || c.id,
+                    c.currency,
                     ...visibleColumns.map((column) => metric(c, column.id) ?? ''),
                   ]),
                 ]);
@@ -376,7 +379,7 @@ export default function CampaignManager({
                           <span
                             className={`roas-badge ${(metric(row, c.id) || 0) >= 2 ? 'positive' : ''}`}
                           >
-                            {formatMetric(metric(row, c.id), c)}
+                            {formatMetric(metric(row, c.id), c, row.currency)}
                           </span>
                         ) : (
                           formatMetric(
@@ -384,6 +387,7 @@ export default function CampaignManager({
                               ? null
                               : metric(row, c.id),
                             c,
+                            row.currency,
                           )
                         )}
                       </td>
@@ -407,7 +411,9 @@ export default function CampaignManager({
                   <td />
                   <td>Total exibido · {filtered.length}</td>
                   {visibleColumns.map((c) => (
-                    <td key={c.id}>{formatMetric(totalMetric(filtered, c.id), c)}</td>
+                    <td key={c.id}>
+                      {formatMetric(totalMetric(filtered, c.id), c, data.currency)}
+                    </td>
                   ))}
                   <td />
                 </tr>
@@ -486,8 +492,8 @@ export default function CampaignManager({
               ['ID Meta', selected.external_id || selected.id],
               ['Campanha', selected.campaign_name],
               ['Conjunto', selected.adset_name],
-              ['Investimento', brl(selected.spend)],
-              ['Faturamento atribuído', brl(selected.revenue)],
+              ['Investimento', brl(selected.spend, selected.currency)],
+              ['Faturamento atribuído', brl(selected.revenue, selected.currency)],
               ['Vendas aprovadas', number(selected.sales)],
               ['Cliques', number(selected.clicks)],
               ['Impressões', number(selected.impressions)],
@@ -545,7 +551,7 @@ export default function CampaignManager({
                 <input type="date" name="day" defaultValue={localDay()} max={localDay()} required />
               </label>
               <label>
-                Valor investido (R$)
+                Valor investido ({data.currency === 'USD' ? 'US$' : 'R$'})
                 <input type="number" name="amount" min="0" max="10000000" step="0.01" required />
               </label>
             </div>

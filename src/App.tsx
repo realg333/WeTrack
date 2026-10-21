@@ -125,6 +125,9 @@ export default function App() {
   const [project, setProject] = useState(() => localStorage.getItem('wt_project') || 'workspace');
   const [projects, setProjects] = useState<Project[]>([]);
   const [period, setPeriod] = useState('7');
+  const [currency, setCurrency] = useState<'BRL' | 'USD'>(() =>
+    localStorage.getItem('wt_currency') === 'USD' ? 'USD' : 'BRL',
+  );
   const [customDates, setCustomDates] = useState({ start: localDay(), end: localDay() });
   const [customOpen, setCustomOpen] = useState(false);
   const [data, setData] = useState<Dashboard | null>(null);
@@ -216,7 +219,7 @@ export default function App() {
       const end = period === 'custom' ? customDates.end : endDate.toISOString().slice(0, 10);
       try {
         const result = await api<Dashboard>(
-          `/dashboard?${new URLSearchParams({ project, start, end })}`,
+          `/dashboard?${new URLSearchParams({ project, start, end, currency })}`,
         );
         if (version !== generation.current) return;
         setData(result);
@@ -230,7 +233,7 @@ export default function App() {
         if (version === generation.current) setLoading(false);
       }
     },
-    [period, project, customDates],
+    [period, project, customDates, currency],
   );
   useEffect(() => {
     if (authenticated) {
@@ -261,8 +264,9 @@ export default function App() {
   };
   const exportReport = () => {
     if (data) {
-      downloadCsv(`wetrack-${data.start}-${data.end}.csv`, [
+      downloadCsv(`wetrack-${data.currency}-${data.start}-${data.end}.csv`, [
         ['Indicador', 'Valor'],
+        ['Moeda', data.currency],
         ['Faturamento', data.metrics.revenue],
         ['Investimento', data.metrics.spend],
         ['Lucro sobre mídia', data.metrics.profit],
@@ -282,6 +286,7 @@ export default function App() {
       await mutate(kind === 'campaign' ? '/campaigns' : '/rules', 'POST', {
         ...fields,
         project_id: project,
+        currency,
         ...(kind === 'campaign'
           ? { budget: Number(fields.budget) }
           : { threshold: Number(fields.threshold) }),
@@ -525,6 +530,20 @@ export default function App() {
                 ))}
               </div>
               <div className="filter-right">
+                <select
+                  className="button secondary"
+                  aria-label="Moeda do relatório"
+                  value={currency}
+                  onChange={(e) => {
+                    const next = e.target.value as 'BRL' | 'USD';
+                    setSelectedSale(null);
+                    setCurrency(next);
+                    localStorage.setItem('wt_currency', next);
+                  }}
+                >
+                  <option value="BRL">BRL · Real (R$)</option>
+                  <option value="USD">USD · Dólar (US$)</option>
+                </select>
                 <button
                   className={`button date-button ${period === 'custom' ? 'custom-selected' : ''}`}
                   onClick={() => setCustomOpen(true)}
@@ -570,7 +589,7 @@ export default function App() {
             <div className="page-content" key={page}>
               {page === 'overview' && (
                 <>
-                  <MetricCards metrics={data.metrics} />
+                  <MetricCards metrics={data.metrics} currency={data.currency} />
                   <div className="secondary-metrics">
                     {[
                       {
@@ -578,8 +597,16 @@ export default function App() {
                         label: 'Vendas aprovadas',
                         value: number(data.metrics.sales),
                       },
-                      { icon: Wallet, label: 'Ticket médio', value: brl(data.metrics.ticket) },
-                      { icon: Target, label: 'Custo por aquisição', value: brl(data.metrics.cpa) },
+                      {
+                        icon: Wallet,
+                        label: 'Ticket médio',
+                        value: brl(data.metrics.ticket, data.currency),
+                      },
+                      {
+                        icon: Target,
+                        label: 'Custo por aquisição',
+                        value: brl(data.metrics.cpa, data.currency),
+                      },
                       {
                         icon: Users,
                         label: 'Visitantes únicos',
@@ -624,6 +651,7 @@ export default function App() {
                         <strong>
                           {brl(
                             chartDisplay === 'revenue' ? data.metrics.revenue : data.metrics.profit,
+                            data.currency,
                           )}
                         </strong>
                         <div className="chart-legend">
@@ -637,7 +665,11 @@ export default function App() {
                           </span>
                         </div>
                       </div>
-                      <RevenueChart data={data.daily} display={chartDisplay} />
+                      <RevenueChart
+                        data={data.daily}
+                        display={chartDisplay}
+                        currency={data.currency}
+                      />
                     </section>
                     <section className="panel source-panel">
                       <div className="panel-heading">
@@ -663,7 +695,7 @@ export default function App() {
                                     : 0,
                                   1,
                                 )}
-                                %<small>{brl(s.revenue)}</small>
+                                %<small>{brl(s.revenue, data.currency)}</small>
                               </strong>
                             </div>
                           ))
@@ -755,7 +787,7 @@ export default function App() {
                     Em itens conectados à Meta, confira a conta e confirme para alterar status, nome
                     ou orçamento. Campanhas manuais são gerenciadas na WeTrack.
                   </div>
-                  <MetricCards metrics={data.metrics} />
+                  <MetricCards metrics={data.metrics} currency={data.currency} />
                   <CampaignManager
                     data={data}
                     onToggle={updateCampaign}
@@ -773,8 +805,9 @@ export default function App() {
               )}
               {page === 'rules' && (
                 <RulesPage
-                  key={project}
+                  key={`${project}:${currency}`}
                   project={project}
+                  currency={currency}
                   creating={modal === 'rule'}
                   onClose={() => setModal(null)}
                   notify={notify}
@@ -909,7 +942,7 @@ export default function App() {
                 </select>
               </label>
               <label>
-                Orçamento diário (R$)
+                Orçamento diário ({currency === 'USD' ? 'US$' : 'R$'})
                 <input
                   name="budget"
                   type="number"
@@ -994,7 +1027,7 @@ export default function App() {
           onClose={() => setSelectedSale(null)}
         >
           <div className="sale-detail-total">
-            <strong>{brl(selectedSale.amount)}</strong>
+            <strong>{brl(selectedSale.amount, selectedSale.currency)}</strong>
             <Badge tone={statusTone[selectedSale.status]}>{statusLabel[selectedSale.status]}</Badge>
           </div>
           <dl className="detail-list">
@@ -1182,7 +1215,7 @@ function SalesTable({
                 </td>
               )}
               <td className="amount-cell">
-                {brl(s.amount)}
+                {brl(s.amount, s.currency)}
                 <small>{paymentName[s.payment_method]}</small>
               </td>
               <td>
@@ -1244,7 +1277,7 @@ function SalesPage({
       <div className="sales-summary">
         <div>
           <span>Faturamento aprovado</span>
-          <strong>{brl(data.metrics.revenue)}</strong>
+          <strong>{brl(data.metrics.revenue, data.currency)}</strong>
         </div>
         <div>
           <span>Vendas aprovadas</span>
@@ -1252,7 +1285,7 @@ function SalesPage({
         </div>
         <div>
           <span>Ticket médio</span>
-          <strong>{brl(data.metrics.ticket)}</strong>
+          <strong>{brl(data.metrics.ticket, data.currency)}</strong>
         </div>
         <div>
           <span>Aguardando pagamento</span>
@@ -1282,12 +1315,13 @@ function SalesPage({
           <button
             className="button secondary"
             onClick={() => {
-              downloadCsv('wetrack-vendas.csv', [
+              downloadCsv(`wetrack-vendas-${data.currency}.csv`, [
                 [
                   'Pedido',
                   'Produto',
                   'Cliente',
                   'Valor',
+                  'Moeda',
                   'Status',
                   'Origem',
                   'Campanha atribuída',
@@ -1308,6 +1342,7 @@ function SalesPage({
                   s.product,
                   s.customer_name,
                   s.amount,
+                  s.currency,
                   statusLabel[s.status],
                   s.utm_source,
                   s.campaign_name || '',
@@ -1397,7 +1432,7 @@ function NotificationList({ data, onSelect }: { data: Dashboard; onSelect: (s: S
             </span>
             <div>
               <strong>
-                Mais uma venda por aqui!<b>{brl(s.amount)}</b>
+                Mais uma venda por aqui!<b>{brl(s.amount, s.currency)}</b>
               </strong>
               <p>{s.product}</p>
               <small>{dateTime(s.created_at)}</small>

@@ -14,6 +14,7 @@ export const campaignSchema = z.object({
   source: z.enum(['Meta Ads', 'Google Ads', 'TikTok Ads']).default('Meta Ads'),
   budget: z.number().min(0).max(1000000),
   project_id: z.string(),
+  currency: z.enum(['BRL', 'USD']).default('BRL'),
 });
 export const pixelSchema = z.object({
   name: z.string().trim().min(3).max(80),
@@ -28,6 +29,7 @@ export const webhookSchema = z.object({
   order_id: z.string().min(1).max(120),
   status: z.enum(['approved', 'pending', 'refunded', 'chargeback', 'canceled', 'disputed']),
   amount: z.number().finite().min(0).max(10000000),
+  currency: z.enum(['BRL', 'USD']).default('BRL'),
   customer_name: z.string().max(100).default('Cliente'),
   customer_email: z.string().email().max(200).optional(),
   customer_phone: z

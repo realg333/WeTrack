@@ -29,7 +29,7 @@ test('Meta selects accounts, imports the three levels once and sends deduplicate
         json: async () => ({
           data: [
             { id: 'act_123', name: 'Conta BRL', currency: 'BRL', account_status: 1 },
-            { id: 'act_456', name: 'USD', currency: 'USD' },
+            { id: 'act_456', name: 'EUR', currency: 'EUR' },
             { id: 'act_666', name: 'Segunda conta BRL', currency: 'BRL', account_status: 1 },
           ],
         }),

@@ -248,7 +248,7 @@ test('Cakto V2 preserves distinct bump transactions, deduplicates connections, a
     f.db.prepare("SELECT status FROM sales WHERE external_id='bump'").get().status,
     'approved',
   );
-  assert.equal((await f.send(c, cakto('purchase_approved', { currency: 'USD' }))).status, 400);
+  assert.equal((await f.send(c, cakto('purchase_approved', { currency: 'EUR' }))).status, 400);
   const rejected = f.db
     .prepare(
       "SELECT * FROM webhook_receipts WHERE status='failed' ORDER BY received_at DESC LIMIT 1",

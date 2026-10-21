@@ -50,8 +50,10 @@ function sale(data, extra) {
   return { ...result.data, ...extra };
 }
 function currency(value) {
-  if (String(value || 'BRL').toUpperCase() !== 'BRL')
-    throw fail('Moeda não suportada. Esta operação recebe somente vendas em BRL.');
+  const code = String(value || 'BRL').toUpperCase();
+  if (!['BRL', 'USD'].includes(code))
+    throw fail('Moeda não suportada. Envie vendas em BRL ou USD.');
+  return code;
 }
 function amount(value, divisor = 1) {
   if (
@@ -90,7 +92,6 @@ export function normalizeCakto(payload) {
     orders: items.map((item) => {
       const d = object(item),
         customer = object(d.customer);
-      currency(d.currency);
       const state =
         { refunded: 'refunded', chargedback: 'chargeback' }[d.status] || supported[event];
       const happened = timestamp(
@@ -104,6 +105,7 @@ export function normalizeCakto(payload) {
           order_id: text(d.id, 120),
           status: state,
           amount: amount(d.amount ?? (state === 'approved' ? undefined : d.baseAmount)),
+          currency: currency(d.currency),
           product: text(d.product?.name, 150) || 'Venda Cakto',
           customer_name: text(customer.name, 100) || 'Cliente',
           customer_email: email(customer.email),
@@ -152,7 +154,6 @@ export function normalizeHotmart(payload) {
     throw fail(
       'Reembolso parcial exige conciliação: o webhook não informa o valor efetivamente devolvido.',
     );
-  currency(price.currency_value);
   const brazil = (p.checkout_country?.iso || b.address?.country_iso) === 'BR';
   const number = String(b.checkout_phone || '').replace(/\D/g, '');
   const localPhone =
@@ -168,6 +169,7 @@ export function normalizeHotmart(payload) {
           order_id: text(p.transaction, 120),
           status: statuses[event],
           amount: amount(price.value),
+          currency: currency(price.currency_value),
           product: text(d.product?.name, 150) || 'Venda Hotmart',
           customer_name: text(b.name, 100) || 'Cliente',
           customer_email: email(b.email),
@@ -198,7 +200,6 @@ export function normalizeBlackcat(payload, verified) {
     REFUNDED: 'refunded',
   }[d.status];
   if (!status) throw fail('Status de transação Blackcat não suportado.');
-  currency(d.currency || payload.currency);
   const utm = object(payload.utm),
     customer = object(payload.customer);
   return {
@@ -209,6 +210,7 @@ export function normalizeBlackcat(payload, verified) {
           order_id: text(d.transactionId, 120),
           status,
           amount: amount(d.amount, 100),
+          currency: currency(d.currency || payload.currency),
           product: 'Venda Blackcat',
           customer_name: text(customer.name, 100) || 'Cliente',
           customer_email: email(customer.email),

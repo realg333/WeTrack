@@ -13,7 +13,8 @@ import {
 } from './rule-model.mjs';
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
-const reais = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const reais = (value, currency = 'BRL') =>
+  value.toLocaleString('pt-BR', { style: 'currency', currency });
 const budgetAction = (action) => action === 'increase_budget' || action === 'decrease_budget';
 export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
   function parse(input) {
@@ -32,7 +33,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     };
     const project = db.prepare('SELECT * FROM projects WHERE id=?').get(rule.project_id);
     if (!project) throw fail('Operação não encontrada.', 404);
-    const campaigns = visibleCampaigns(db, rule.project_id);
+    const campaigns = visibleCampaigns(db, rule.project_id, rule.currency);
     if (rule.campaign_ids.some((id) => !campaigns.some((c) => c.id === id)))
       throw fail('Selecione campanhas disponíveis nesta operação.');
     return { ...rule, active: rule.active ?? rule.action === 'alert' };
@@ -72,6 +73,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     return { id };
   }
   function blocker(rule, campaign, rules, now, { checkCooldown = true } = {}) {
+    rules = rules.filter((r) => r.currency === (campaign.currency || 'BRL'));
     if (
       checkCooldown &&
       rule.id &&
@@ -92,7 +94,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     if (meta.accountsFor) {
       const account = meta.accountsFor(rule.project_id).find((a) => a.id === campaign.account_id);
       if (!account?.enabled || !account.supported || account.account_status !== 1)
-        return 'A conta Meta precisa estar conectada, selecionada, ativa e em BRL.';
+        return 'A conta Meta precisa estar conectada, selecionada, ativa e em BRL ou USD.';
     }
     const state = db
       .prepare('SELECT * FROM rule_campaign_state WHERE campaign_id=?')
@@ -156,7 +158,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     if (ruleId && !rules.some((r) => r.id === ruleId))
       throw fail('Regra não encontrada nesta operação.', 404);
     const protections = rules.filter((r) => r.id !== ruleId);
-    const campaigns = visibleCampaigns(db, rule.project_id).filter(
+    const campaigns = visibleCampaigns(db, rule.project_id, rule.currency).filter(
       (c) => !rule.campaign_ids.length || rule.campaign_ids.includes(c.id),
     );
     return {
@@ -206,7 +208,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
       rule.action,
       status,
       message,
-      JSON.stringify(metrics),
+      JSON.stringify({ ...metrics, currency: rule.currency || 'BRL' }),
       clock().toISOString(),
     );
     return id;
@@ -263,7 +265,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
       rules.sort((a, b) => priority[a.action] - priority[b.action]);
       for (const rule of rules) {
         if (!scheduleDue(rule, clock())) continue;
-        for (const campaign of visibleCampaigns(db, projectId)) {
+        for (const campaign of visibleCampaigns(db, projectId, rule.currency)) {
           if (Date.now() > deadline)
             throw fail(
               'Tempo da execução atingido. As campanhas restantes serão verificadas no próximo ciclo.',
@@ -366,7 +368,7 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
                 continue;
               }
               updateInput = { budget: next, expected_revision: before.revision };
-              successMessage = `Orçamento confirmado na Meta: ${reais(before.budget)} para ${reais(next)}.`;
+              successMessage = `Orçamento confirmado na Meta: ${reais(before.budget, before.currency)} para ${reais(next, before.currency)}.`;
             }
             runId = log(rule, campaign, metrics, 'running', 'Enviando alteração à Meta.');
             await meta.management.update(projectId, 'campaigns', campaign.id, updateInput, {

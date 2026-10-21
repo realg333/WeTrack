@@ -291,9 +291,9 @@ export const metric = (row: HierarchyRow, id: string): number | null => {
   const v = (row as unknown as Record<string, unknown>)[id];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };
-export function formatMetric(value: number | null, column: Column) {
+export function formatMetric(value: number | null, column: Column, currency = 'BRL') {
   if (value == null) return '—';
-  if (column.format === 'money') return brl(value);
+  if (column.format === 'money') return brl(value, currency);
   if (column.format === 'percent') return `${decimal(value)}%`;
   if (column.format === 'ratio') return `${decimal(value)}x`;
   if (column.format === 'seconds') return `${decimal(value, 1)} s`;

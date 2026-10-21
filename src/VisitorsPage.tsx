@@ -383,7 +383,8 @@ export default function VisitorsPage({
                           )}
                           {event.value != null && (
                             <p className="journey-detail">
-                              Valor do evento: {brl(event.value)} (não compõe faturamento)
+                              Valor do evento: {brl(event.value, event.currency || 'BRL')} (não compõe
+                              faturamento)
                             </p>
                           )}
                           {event.first_source && (
@@ -466,7 +467,7 @@ export default function VisitorsPage({
                               ? 'Reembolsada'
                               : 'Chargeback'}
                       </Badge>
-                      <b>{brl(s.amount)}</b>
+                      <b>{brl(s.amount, s.currency)}</b>
                     </div>
                   ))
                 ) : (

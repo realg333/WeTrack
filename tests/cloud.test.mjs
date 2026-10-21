@@ -24,6 +24,8 @@ test('cloud bootstrap is atomic and idempotent, carries encrypted configuration 
         "INSERT INTO sales(id,project_id,external_id,campaign_id,product,amount,status,created_at,day) VALUES('cloud-sale','workspace','order','cloud-campaign','Produto',97,'approved','2026-10-18T12:00:00Z','2026-10-18')",
         "INSERT INTO sale_tracking VALUES('cloud-sale','original-set','original-set','original-ad')",
         "INSERT INTO manual_sale_attribution VALUES('cloud-sale','2026-10-18T13:00:00Z')",
+        "INSERT INTO campaign_currencies VALUES('cloud-campaign','USD')",
+        "INSERT INTO sale_currencies VALUES('cloud-sale','USD')",
       ],
       'write',
     );
@@ -43,6 +45,14 @@ test('cloud bootstrap is atomic and idempotent, carries encrypted configuration 
       'Operação publicada',
     );
     assert.equal((await client.execute('SELECT COUNT(*) AS n FROM campaigns')).rows[0].n, 1);
+    assert.equal(
+      (await client.execute('SELECT currency FROM campaign_currencies')).rows[0].currency,
+      'USD',
+    );
+    assert.equal(
+      (await client.execute('SELECT currency FROM sale_currencies')).rows[0].currency,
+      'USD',
+    );
     assert.equal(
       (await client.execute('SELECT utm_term FROM sale_tracking')).rows[0].utm_term,
       'original-set',

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
 import { createMetaManagement } from './management.mjs';
+import { supportedCurrencies } from './currencies.mjs';
 
 export function loadSecretKey(path = './data/secret.key') {
   if (process.env.SECRETS_KEY) {
@@ -81,7 +82,7 @@ export function createMetaService(db, key, transport = fetch) {
     if (!connection) return [];
     return JSON.parse(connection.accounts).map((a) => ({
       ...a,
-      supported: a.currency === 'BRL',
+      supported: supportedCurrencies.includes(a.currency),
       enabled: Boolean(
         db
           .prepare('SELECT enabled FROM meta_account_selection WHERE project_id=? AND account_id=?')
@@ -94,7 +95,7 @@ export function createMetaService(db, key, transport = fetch) {
     if (!account)
       throw Object.assign(new Error('Conta não encontrada nesta operação.'), { status: 404 });
     if (enabled && !account.supported)
-      throw Object.assign(new Error('Esta versão consolida somente contas em BRL.'), {
+      throw Object.assign(new Error('Selecione uma conta em BRL ou USD.'), {
         status: 400,
       });
     db.prepare(
@@ -142,7 +143,7 @@ export function createMetaService(db, key, transport = fetch) {
     }
     return {
       accounts: accountsFor(projectId),
-      skipped: accounts.filter((a) => a.currency !== 'BRL').length,
+      skipped: accounts.filter((a) => !supportedCurrencies.includes(a.currency)).length,
     };
   }
   const campaignKey = (projectId, external) =>
@@ -245,6 +246,9 @@ export function createMetaService(db, key, transport = fetch) {
           db.prepare(
             'INSERT INTO meta_campaigns VALUES(?,?,?) ON CONFLICT(campaign_id) DO UPDATE SET account_id=excluded.account_id',
           ).run(cid, r.id, aid);
+          db.prepare(
+            'INSERT INTO campaign_currencies VALUES(?,?) ON CONFLICT(campaign_id) DO UPDATE SET currency=excluded.currency',
+          ).run(cid, d.account.currency);
           return cid;
         };
         const catalog = new Map(d.catalog.map((r) => [r.id, r]));
@@ -431,7 +435,7 @@ export function createMetaService(db, key, transport = fetch) {
       user_data: userData,
       custom_data: {
         value: data.amount,
-        currency: 'BRL',
+        currency: data.currency || 'BRL',
         content_name: data.product,
         order_id: data.order_id,
       },

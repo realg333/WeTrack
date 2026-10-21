@@ -1,5 +1,5 @@
-export const brl = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+export const brl = (value: number, currency = 'BRL') =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(value);
 export const number = (value: number) =>
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(value);
 export const decimal = (value: number, digits = 2) =>

@@ -29,6 +29,8 @@ export function createDatabase(
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS meta_connections (project_id TEXT PRIMARY KEY REFERENCES projects(id), token_cipher TEXT NOT NULL, accounts TEXT NOT NULL, connected_at TEXT NOT NULL, last_sync TEXT);
     CREATE TABLE IF NOT EXISTS meta_campaigns (campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id), external_id TEXT NOT NULL, account_id TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS campaign_currencies (campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id) ON DELETE CASCADE, currency TEXT NOT NULL CHECK(currency IN ('BRL','USD')));
+    CREATE TABLE IF NOT EXISTS sale_currencies (sale_id TEXT PRIMARY KEY REFERENCES sales(id) ON DELETE CASCADE, currency TEXT NOT NULL CHECK(currency IN ('BRL','USD')));
     CREATE TABLE IF NOT EXISTS pixel_capi (pixel_id TEXT PRIMARY KEY REFERENCES pixels(id), meta_pixel_id TEXT NOT NULL, token_cipher TEXT NOT NULL, test_event_code TEXT);
     CREATE TABLE IF NOT EXISTS integration_pixels (integration_id TEXT PRIMARY KEY, pixel_id TEXT REFERENCES pixels(id));
     CREATE TABLE IF NOT EXISTS capi_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, pixel_id TEXT NOT NULL, payload TEXT NOT NULL, status TEXT DEFAULT 'pending', attempts INTEGER DEFAULT 0, next_attempt INTEGER DEFAULT 0, last_error TEXT, created_at TEXT NOT NULL);

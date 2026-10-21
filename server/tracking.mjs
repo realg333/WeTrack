@@ -5,7 +5,7 @@ import { dateKey } from './domain.mjs';
 export const eventNameSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{1,63}$/);
 export const signalSchema = z.object({
   value: z.number().finite().min(0).max(10000000).optional(),
-  currency: z.enum(['BRL']).default('BRL'),
+  currency: z.enum(['BRL', 'USD']).default('BRL'),
   content_id: z.string().max(120).optional(),
   content_name: z.string().max(150).optional(),
   click_ids: z

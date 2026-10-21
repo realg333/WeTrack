@@ -5,7 +5,7 @@ import { createDatabase } from '../server/db.mjs';
 import { createApp } from '../server/app.mjs';
 import { encrypt } from '../server/meta.mjs';
 
-async function fixture(t) {
+async function fixture(t, currency = 'BRL') {
   const previous = process.env.META_GRAPH_VERSION;
   process.env.META_GRAPH_VERSION = 'v99.0';
   const db = createDatabase(':memory:'),
@@ -69,7 +69,7 @@ async function fixture(t) {
   db.prepare('INSERT INTO meta_connections VALUES(?,?,?,?,?)').run(
     'workspace',
     encrypt('fake-management-token', key),
-    JSON.stringify([{ id: 'act_123', name: 'Conta de teste', currency: 'BRL', account_status: 1 }]),
+    JSON.stringify([{ id: 'act_123', name: 'Conta de teste', currency, account_status: 1 }]),
     new Date().toISOString(),
     null,
   );
@@ -241,4 +241,15 @@ test('Meta HTTP validation and legacy routes cannot silently bypass the manageme
     409,
   );
   assert.equal(f.writes.length, 0);
+});
+
+test('USD management keeps budgets in dollars and sends dollar cents to Meta', async (t) => {
+  const f = await fixture(t, 'USD');
+  const current = await f.inspect();
+  assert.equal(current.data.currency, 'USD');
+  const result = await f.update({ budget: 17.23 });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.entity.currency, 'USD');
+  assert.equal(result.data.entity.budget, 17.23);
+  assert.deepEqual(f.writes[0].changes, { daily_budget: 1723 });
 });

@@ -39,6 +39,7 @@ const sample = {
   order_id: 'PEDIDO-1001',
   status: 'approved',
   amount: 97,
+  currency: 'BRL',
   customer_name: 'Cliente de exemplo',
   product: 'Meu produto',
   payment_method: 'pix',
@@ -365,7 +366,7 @@ export default function IntegrationsPage({
             <div className="panel-heading">
               <div>
                 <h2>Contas de anúncios</h2>
-                <p>Investimento de campanhas Meta em reais</p>
+                <p>Contas Meta em reais (BRL) e dólares (USD)</p>
               </div>
               <span className="integration-logo meta">∞</span>
             </div>
@@ -535,9 +536,9 @@ export default function IntegrationsPage({
           <div className="inline-notice">
             <CircleHelp size={16} />
             Contas novas começam desativadas. Apenas as selecionadas entram na sincronização e nos
-            relatórios. Esta versão calcula valores em BRL; contas em outras moedas ficam
-            disponíveis na lista. A gestão de campanhas, conjuntos e anúncios exige ads_management e
-            acesso suficiente à conta na Meta.
+            relatórios. Contas em BRL e USD são suportadas. Escolha a moeda no painel para ver os
+            relatórios separados, sem conversão ou soma entre moedas. A gestão de campanhas,
+            conjuntos e anúncios exige ads_management e acesso suficiente à conta na Meta.
           </div>
         </>
       )}
@@ -1440,7 +1441,7 @@ export default function IntegrationsPage({
                 'Gere o token no ambiente oficial da Meta',
                 'Conceda ads_read e ads_management e acesso às suas contas de anúncios',
                 'Configure META_GRAPH_VERSION no arquivo .env',
-                'A gestão de anúncios permite alterações nas contas em BRL selecionadas',
+                'A gestão de anúncios permite alterações nas contas em BRL ou USD selecionadas',
               ].map((t) => (
                 <div key={t}>
                   <span className="requirement-dot" />
@@ -1706,8 +1707,10 @@ export default function IntegrationsPage({
             </div>
             <p>
               Envie JSON com <code>Content-Type: application/json</code>. O valor de{' '}
-              <code>amount</code> é em reais (97 = R$ 97,00). Cada pedido é identificado por{' '}
-              <code>order_id</code> dentro da integração.
+              <code>amount</code> é na moeda indicada por <code>currency</code>: BRL ou USD (97 = R$
+              97,00 ou US$ 97,00). Sem esse campo, usamos BRL. A moeda deve ser mantida nas
+              atualizações do pedido. Cada pedido é identificado por <code>order_id</code> dentro da
+              integração.
             </p>
             <div className="format-preview">
               <pre>{JSON.stringify(sample, null, 2)}</pre>

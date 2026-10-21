@@ -40,6 +40,7 @@ import {
   recoverReference,
 } from './tracking.mjs';
 import { normalizeUtmify } from './utmify-format.mjs';
+import { saveSaleCurrency } from './currencies.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -241,7 +242,8 @@ export function createApp(db, options = {}) {
   app.get('/api/dashboard', (req, res) => {
     const p = project(req.query.project),
       r = range(req.query);
-    res.json(dashboardReport(db, p, r.start, r.end));
+    const currency = z.enum(['BRL', 'USD']).default('BRL').parse(req.query.currency);
+    res.json(dashboardReport(db, p, r.start, r.end, currency));
     if (!options.serverless && !p.demo) void rules.run(p.id).catch(() => {});
   });
   app.get('/api/ad-hierarchy', (req, res) => {
@@ -249,7 +251,12 @@ export function createApp(db, options = {}) {
       r = range(req.query),
       level = z.enum(['campaigns', 'adsets', 'ads']).parse(req.query.level || 'campaigns'),
       parent = z.string().max(100).optional().parse(req.query.parent);
-    res.json({ level, rows: hierarchyReport(db, p.id, r.start, r.end, level, parent) });
+    const currency = z.enum(['BRL', 'USD']).default('BRL').parse(req.query.currency);
+    res.json({
+      level,
+      currency,
+      rows: hierarchyReport(db, p.id, r.start, r.end, level, parent, currency),
+    });
   });
   app.get('/api/sale-attribution-options', (req, res) => {
     const p = project(req.query.project);
@@ -401,6 +408,7 @@ export function createApp(db, options = {}) {
       1,
       now(),
     );
+    db.prepare('INSERT INTO campaign_currencies VALUES(?,?)').run(cid, c.currency);
     res.status(201).json({ id: cid });
   });
   app.patch('/api/campaigns/:id', (req, res) => {
@@ -715,10 +723,13 @@ export function createApp(db, options = {}) {
   });
   app.get('/api/rules', (req, res) => {
     const p = project(req.query.project);
+    const currency = z.enum(['BRL', 'USD']).default('BRL').parse(req.query.currency);
     res.json({
-      rules: ruleReport(db, p.id, visibleCampaigns(db, p.id)),
-      campaigns: visibleCampaigns(db, p.id),
-      history: rules.history(p.id),
+      rules: ruleReport(db, p.id, visibleCampaigns(db, p.id, currency)).filter(
+        (r) => r.currency === currency,
+      ),
+      campaigns: visibleCampaigns(db, p.id, currency),
+      history: rules.history(p.id).filter((r) => (r.metrics.currency || 'BRL') === currency),
       worker:
         db
           .prepare(
@@ -882,6 +893,7 @@ export function createApp(db, options = {}) {
           dateKey(new Date(time)),
         );
       }
+      saveSaleCurrency(db, sid, data.currency, Boolean(previous));
       const ad = resolveAd(db, integration.project_id, attributionAd);
       const adset = ad || resolveAdset(db, integration.project_id, attributionSet);
       if (adset && !manual)

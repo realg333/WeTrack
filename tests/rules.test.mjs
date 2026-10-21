@@ -498,3 +498,13 @@ test('alert push preference is stored and campaign rules do not keep it', (t) =>
   assert.equal(read(pause.id).notify_push, false);
   assert.equal(read(pause.id).budget_change, null);
 });
+
+test('legacy BRL automation cannot pause a USD campaign', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-19T15:00:00Z') });
+  const f = fixture(t);
+  f.db.prepare('INSERT INTO campaign_currencies VALUES(?,?)').run('bad', 'USD');
+  f.service.save(f.rule());
+  assert.deepEqual(await f.service.run('workspace'), { success: 0, failures: 0, error: null });
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.objects[100].status, 'ACTIVE');
+});

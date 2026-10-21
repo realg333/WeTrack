@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { dateKey } from './domain.mjs';
+import { saveSaleCurrency } from './currencies.mjs';
 import {
   resolveCampaign,
   resolveAd,
@@ -119,6 +120,7 @@ export function recordSale(db, meta, integration, input, options = {}) {
         time,
         dateKey(new Date(time)),
       );
+    saveSaleCurrency(db, sid, data.currency, Boolean(previous));
     const ad = resolveAd(db, integration.project_id, attributionAd),
       adset = ad || resolveAdset(db, integration.project_id, attributionSet);
     if (adset && !manual)

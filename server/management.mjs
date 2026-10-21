@@ -35,7 +35,7 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
       throw fail('Item Meta não encontrado nesta operação.', 404);
     const account = accountsFor(project).find((a) => a.id === row.account_id);
     if (!account?.enabled || !account.supported)
-      throw fail('Ative a conta de anúncios em BRL nesta operação antes de editar.', 403);
+      throw fail('Ative a conta de anúncios em BRL ou USD nesta operação antes de editar.', 403);
     if (account.account_status !== 1)
       throw fail('A conta de anúncios precisa estar ativa na Meta.', 403);
     const connection = db
@@ -46,6 +46,7 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
       ...row,
       level,
       account_name: account.name,
+      currency: account.currency,
       cipher: connection.token_cipher,
       token: decryptToken(connection.token_cipher),
     };
@@ -100,7 +101,7 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
       level: ctx.level,
       account_id: ctx.account_id,
       account_name: ctx.account_name,
-      currency: 'BRL',
+      currency: ctx.currency,
       name: entity.name,
       status: entity.status,
       effective_status: entity.effective_status,
@@ -149,7 +150,9 @@ export function createMetaManagement(db, graph, accountsFor, decryptToken) {
           amount > 100000000 ||
           Math.abs(input.budget * 100 - amount) > 0.000001
         )
-          throw fail('Informe um orçamento positivo, em reais, com até duas casas decimais.');
+          throw fail(
+            `Informe um orçamento positivo, em ${before.currency}, com até duas casas decimais.`,
+          );
         if (input.budget !== before.budget)
           params[before.budget_type === 'daily' ? 'daily_budget' : 'lifetime_budget'] = amount;
       }

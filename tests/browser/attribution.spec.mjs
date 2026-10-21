@@ -72,7 +72,7 @@ test('sales can be assigned through the complete hierarchy and retain original U
   await expect(row).toContainText(ad.name);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar CSV', exact: true }).click();
-  expect((await downloadPromise).suggestedFilename()).toBe('wetrack-vendas.csv');
+  expect((await downloadPromise).suggestedFilename()).toBe('wetrack-vendas-BRL.csv');
   await page.reload();
   await page.getByRole('textbox', { name: 'Buscar por produto, cliente ou pedido…' }).fill(orderId);
   await page.getByRole('button', { name: `Ver pedido ${orderId}` }).click();

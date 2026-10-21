@@ -24,6 +24,7 @@ export type Metrics = {
   clicks: number;
 };
 export type Campaign = Metrics & {
+  currency: 'BRL' | 'USD';
   id: string;
   name: string;
   source: string;
@@ -31,6 +32,7 @@ export type Campaign = Metrics & {
   active: number;
 };
 export type Sale = {
+  currency: 'BRL' | 'USD';
   id: string;
   project_id: string;
   campaign_id: string | null;
@@ -64,6 +66,7 @@ export type AttributionOptions = {
   ads: { id: string; name: string; adset_id: string; external_id: string | null }[];
 };
 export type Rule = {
+  currency: 'BRL' | 'USD';
   id: string;
   name: string;
   metric: string;
@@ -83,6 +86,7 @@ export type Rule = {
 };
 export type RuleCondition = { metric: string; operator: string; threshold: number };
 export type Dashboard = {
+  currency: 'BRL' | 'USD';
   metrics: Metrics;
   daily: { day: string; revenue: number; spend: number }[];
   campaigns: Campaign[];

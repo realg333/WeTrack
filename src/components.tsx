@@ -251,7 +251,13 @@ const metricDefinitions: { key: keyof Metrics; title: string; type: string; tip:
     tip: 'Faturamento dividido pelo investimento em anúncios.',
   },
 ];
-export function MetricCards({ metrics }: { metrics: Metrics }) {
+export function MetricCards({
+  metrics,
+  currency = 'BRL',
+}: {
+  metrics: Metrics;
+  currency?: string;
+}) {
   return (
     <div className="metrics-grid">
       {metricDefinitions.map((m, i) => (
@@ -277,7 +283,7 @@ export function MetricCards({ metrics }: { metrics: Metrics }) {
             </span>
           </div>
           <strong className="metric-value">
-            {m.type === 'ratio' ? `${decimal(metrics[m.key])}x` : brl(metrics[m.key])}
+            {m.type === 'ratio' ? `${decimal(metrics[m.key])}x` : brl(metrics[m.key], currency)}
           </strong>
           <div className="metric-foot">
             {i === 0 ? (
@@ -321,9 +327,11 @@ export function MetricCards({ metrics }: { metrics: Metrics }) {
 export function RevenueChart({
   data,
   display,
+  currency = 'BRL',
 }: {
   data: Dashboard['daily'];
   display: 'revenue' | 'profit';
+  currency?: string;
 }) {
   const [w, h, pad] = [1000, 224, 25];
   const values = data.map((d) => (display === 'profit' ? d.revenue - d.spend : d.revenue));
@@ -339,7 +347,7 @@ export function RevenueChart({
     <div className="chart-wrap">
       <div className="chart-y">
         {[1, 0.75, 0.5, 0.25, 0].map((v) => (
-          <span key={v}>{brl(min + range * v).replace(',00', '')}</span>
+          <span key={v}>{brl(min + range * v, currency).replace(',00', '')}</span>
         ))}
       </div>
       <div className="chart-main">
@@ -380,8 +388,8 @@ export function RevenueChart({
                   <rect x={x(i) - 10} y="0" width="20" height={h} fill="transparent">
                     <title>
                       {d.day.split('-').reverse().join('/')}:{' '}
-                      {display === 'profit' ? 'Lucro' : 'Faturamento'} {brl(values[i])} ·
-                      Investimento {brl(d.spend)}
+                      {display === 'profit' ? 'Lucro' : 'Faturamento'} {brl(values[i], currency)} ·
+                      Investimento {brl(d.spend, currency)}
                     </title>
                   </rect>
                 </g>

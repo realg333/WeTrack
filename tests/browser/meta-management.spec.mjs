@@ -26,6 +26,7 @@ async function fixture(page, options = {}) {
     budget_type: 'daily',
     budget: 50,
     can_edit_budget: true,
+    currency: 'BRL',
     revision: 'a'.repeat(64),
     ...options.entity,
   };
@@ -41,6 +42,7 @@ async function fixture(page, options = {}) {
             source: 'facebook',
             budget: entity.budget,
             active: Number(entity.active),
+            currency: entity.currency,
             revenue: 0,
             spend: 0,
             roas: 0,
@@ -131,4 +133,18 @@ test('Meta editor distinguishes lifetime and inherited budgets', async ({ page }
   await expect(f.dialog.getByText(/Esta campanha utiliza orçamento nos conjuntos/)).toBeVisible();
   await expect(f.dialog.getByRole('spinbutton')).toHaveCount(0);
   expect(f.writes).toHaveLength(0);
+});
+
+test('USD editor labels and submits dollar budgets', async ({ page }) => {
+  const f = await fixture(page, { entity: { currency: 'USD', budget: 12.5 } });
+  await page.getByRole('button', { name: 'Editar Campanha de avaliação na Meta' }).click();
+  await expect(f.dialog.getByRole('spinbutton', { name: 'Orçamento diário (US$)' })).toHaveValue(
+    '12.5',
+  );
+  await expect(f.dialog.getByText(/Atual: US/)).toContainText('12,50');
+  await f.dialog.getByRole('spinbutton').fill('17.23');
+  await f.dialog.getByRole('checkbox').check();
+  await f.dialog.getByRole('button', { name: 'Salvar na Meta' }).click();
+  await expect(page.getByRole('status')).toContainText('Alteração confirmada na Meta.');
+  expect(f.writes[0].budget).toBe(17.23);
 });

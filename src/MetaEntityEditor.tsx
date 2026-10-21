@@ -6,6 +6,7 @@ type Entity = {
   name: string;
   account_id: string;
   account_name: string;
+  currency: string;
   external_id: string;
   status: string;
   effective_status: string;
@@ -120,7 +121,7 @@ export default function MetaEntityEditor({
             <div>
               <strong>{entity.account_name}</strong>
               <br />
-              Conta {entity.account_id} · Item {entity.external_id}
+              Conta {entity.account_id} · {entity.currency || 'BRL'} · Item {entity.external_id}
             </div>
           </div>
           <fieldset disabled={busy || !entity.editable} className="meta-edit-fields">
@@ -146,7 +147,8 @@ export default function MetaEntityEditor({
             </p>
             {entity.can_edit_budget && (
               <label>
-                {entity.budget_type === 'daily' ? 'Orçamento diário (R$)' : 'Orçamento total (R$)'}
+                {entity.budget_type === 'daily' ? 'Orçamento diário' : 'Orçamento total'} (
+                {entity.currency === 'USD' ? 'US$' : 'R$'})
                 <input
                   type="number"
                   min="0.01"
@@ -157,7 +159,7 @@ export default function MetaEntityEditor({
                   onChange={(e) => setBudget(e.target.value)}
                 />
                 <small>
-                  Atual: {brl(entity.budget)} ·{' '}
+                  Atual: {brl(entity.budget, entity.currency)} ·{' '}
                   {entity.budget_type === 'daily' ? 'por dia' : 'total do período'}
                 </small>
               </label>

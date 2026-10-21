@@ -1,19 +1,20 @@
 import { summarize, money, ratio } from './domain.mjs';
 import { ruleReport } from './rule-model.mjs';
 import { enrichRows } from './analytics.mjs';
+import { campaignCurrency, saleCurrency } from './currencies.mjs';
 
 export const campaignVisible = `NOT EXISTS (SELECT 1 FROM meta_campaigns mc WHERE mc.campaign_id=c.id) OR EXISTS (SELECT 1 FROM meta_campaigns mc JOIN meta_account_selection sel ON sel.account_id=mc.account_id AND sel.project_id=c.project_id WHERE mc.campaign_id=c.id AND sel.enabled=1)`;
-export function visibleCampaigns(db, projectId) {
+export function visibleCampaigns(db, projectId, currency) {
   return db
     .prepare(
-      `SELECT c.*,m.external_id,m.account_id FROM campaigns c LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) ORDER BY c.active DESC,c.name`,
+      `SELECT c.*,m.external_id,m.account_id,${campaignCurrency} AS currency FROM campaigns c LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) ${currency ? `AND ${campaignCurrency}=?` : ''} ORDER BY c.active DESC,c.name`,
     )
-    .all(projectId);
+    .all(...(currency ? [projectId, currency] : [projectId]));
 }
-export function reportSales(db, projectId, start, end) {
+export function reportSales(db, projectId, start, end, currency) {
   return db
     .prepare(
-      `SELECT s.*,sa.visitor_id,sa.adset_id,sa.ad_id,c.name AS campaign_name,
+      `SELECT s.*,${saleCurrency} AS currency,sa.visitor_id,sa.adset_id,sa.ad_id,c.name AS campaign_name,
         a.name AS adset_name,ad.name AS ad_name,st.utm_term,st.adset_reference,st.ad_reference,
         ma.updated_at AS attribution_updated_at,
         CASE WHEN ma.sale_id IS NOT NULL THEN 'manual' WHEN s.campaign_id IS NOT NULL THEN 'automatic' ELSE 'unattributed' END AS attribution_method
@@ -23,9 +24,9 @@ export function reportSales(db, projectId, start, end) {
       LEFT JOIN ads ad ON ad.id=sa.ad_id AND ad.adset_id=a.id
       LEFT JOIN sale_tracking st ON st.sale_id=s.id
       LEFT JOIN manual_sale_attribution ma ON ma.sale_id=s.id
-      WHERE s.project_id=? AND s.day BETWEEN ? AND ? AND (c.id IS NULL OR (${campaignVisible})) ORDER BY s.created_at DESC`,
+      WHERE s.project_id=? AND s.day BETWEEN ? AND ? AND (c.id IS NULL OR (${campaignVisible})) ${currency ? `AND ${saleCurrency}=?` : ''} ORDER BY s.created_at DESC`,
     )
-    .all(projectId, start, end);
+    .all(...(currency ? [projectId, start, end, currency] : [projectId, start, end]));
 }
 function spendFor(db, campaignId, start, end) {
   return db
@@ -34,9 +35,9 @@ function spendFor(db, campaignId, start, end) {
     )
     .get(campaignId, start, end);
 }
-export function dashboardReport(db, p, start, end) {
-  const rows = reportSales(db, p.id, start, end);
-  const campaignRows = visibleCampaigns(db, p.id);
+export function dashboardReport(db, p, start, end, currency = 'BRL') {
+  const rows = reportSales(db, p.id, start, end, currency);
+  const campaignRows = visibleCampaigns(db, p.id, currency);
   const campaigns = campaignRows.map((c) => {
     const spent = spendFor(db, c.id, start, end);
     return {
@@ -65,9 +66,9 @@ export function dashboardReport(db, p, start, end) {
   const cursor = new Date(`${start}T12:00:00Z`);
   const spending = db
     .prepare(
-      `SELECT s.day,SUM(s.amount) AS amount FROM spend s JOIN campaigns c ON c.id=s.campaign_id WHERE c.project_id=? AND (${campaignVisible}) AND s.day BETWEEN ? AND ? GROUP BY s.day`,
+      `SELECT s.day,SUM(s.amount) AS amount FROM spend s JOIN campaigns c ON c.id=s.campaign_id WHERE c.project_id=? AND (${campaignVisible}) AND s.day BETWEEN ? AND ? AND ${campaignCurrency}=? GROUP BY s.day`,
     )
-    .all(p.id, start, end);
+    .all(p.id, start, end, currency);
   for (
     let n = 0;
     n < 366 && cursor.toISOString().slice(0, 10) <= end;
@@ -99,12 +100,12 @@ export function dashboardReport(db, p, start, end) {
       "SELECT page_url,COUNT(*) AS views,COUNT(DISTINCT visitor_id) AS visitors FROM events WHERE project_id=? AND day BETWEEN ? AND ? AND event_name='PageView' GROUP BY page_url ORDER BY views DESC LIMIT 20",
     )
     .all(p.id, start, end);
-  const rules = ruleReport(db, p.id, campaignRows);
+  const rules = ruleReport(db, p.id, campaignRows).filter((r) => r.currency === currency);
   const funnelRows = db
     .prepare(
-      `SELECT f.* FROM campaign_funnel f JOIN campaigns c ON c.id=f.campaign_id WHERE c.project_id=? AND c.source='Meta Ads' AND (${campaignVisible}) AND f.day BETWEEN ? AND ?`,
+      `SELECT f.* FROM campaign_funnel f JOIN campaigns c ON c.id=f.campaign_id WHERE c.project_id=? AND c.source='Meta Ads' AND (${campaignVisible}) AND f.day BETWEEN ? AND ? AND ${campaignCurrency}=?`,
     )
-    .all(p.id, start, end);
+    .all(p.id, start, end, currency);
   const metaCampaigns = new Set(campaigns.filter((c) => c.source === 'Meta Ads').map((c) => c.id));
   const metaOrders = rows.filter((s) => metaCampaigns.has(s.campaign_id));
   const counts = db
@@ -165,6 +166,7 @@ export function dashboardReport(db, p, start, end) {
     hourly: hours.map((sales, hour) => ({ hour, sales })),
   };
   return {
+    currency,
     metrics,
     daily,
     campaigns,
@@ -179,8 +181,8 @@ export function dashboardReport(db, p, start, end) {
   };
 }
 
-export function hierarchyReport(db, projectId, start, end, level, parent) {
-  const sales = reportSales(db, projectId, start, end);
+export function hierarchyReport(db, projectId, start, end, level, parent, currency = 'BRL') {
+  const sales = reportSales(db, projectId, start, end, currency);
   if (level === 'campaigns')
     return enrichRows(
       db,
@@ -188,7 +190,7 @@ export function hierarchyReport(db, projectId, start, end, level, parent) {
       start,
       end,
       level,
-      visibleCampaigns(db, projectId).map((c) => {
+      visibleCampaigns(db, projectId, currency).map((c) => {
         const s = spendFor(db, c.id, start, end);
         return {
           ...c,
@@ -223,14 +225,14 @@ export function hierarchyReport(db, projectId, start, end, level, parent) {
     level === 'adsets'
       ? db
           .prepare(
-            `SELECT a.*,c.name AS campaign_name,c.source,m.account_id FROM ad_sets a JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) ${parent ? 'AND c.id=?' : ''} ORDER BY a.name`,
+            `SELECT a.*,c.name AS campaign_name,c.source,m.account_id,${campaignCurrency} AS currency FROM ad_sets a JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) AND ${campaignCurrency}=? ${parent ? 'AND c.id=?' : ''} ORDER BY a.name`,
           )
-          .all(...(parent ? [projectId, parent] : [projectId]))
+          .all(...(parent ? [projectId, currency, parent] : [projectId, currency]))
       : db
           .prepare(
-            `SELECT ad.*,a.campaign_id,a.name AS adset_name,c.name AS campaign_name,c.source,m.account_id,0 AS budget FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) ${parent ? 'AND a.id=?' : ''} ORDER BY ad.name`,
+            `SELECT ad.*,a.campaign_id,a.name AS adset_name,c.name AS campaign_name,c.source,m.account_id,0 AS budget,${campaignCurrency} AS currency FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) AND ${campaignCurrency}=? ${parent ? 'AND a.id=?' : ''} ORDER BY ad.name`,
           )
-          .all(...(parent ? [projectId, parent] : [projectId]));
+          .all(...(parent ? [projectId, currency, parent] : [projectId, currency]));
   return enrichRows(
     db,
     projectId,
