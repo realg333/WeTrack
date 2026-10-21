@@ -194,7 +194,7 @@ export function createMetaService(db, key, transport = fetch) {
         list(`${account.id}/insights`, token, {
           ...time,
           fields:
-            'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks',
+            'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,inline_link_clicks,actions',
           level: 'ad',
         }),
       ]);
@@ -217,6 +217,9 @@ export function createMetaService(db, key, transport = fetch) {
     try {
       for (const d of datasets) {
         const aid = d.account.id;
+        db.prepare(
+          "DELETE FROM entity_funnel WHERE project_id=? AND day BETWEEN ? AND ? AND ((level='campaign' AND entity_id IN (SELECT campaign_id FROM meta_campaigns WHERE account_id=?)) OR (level='ad' AND entity_id IN (SELECT ad.id FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN meta_campaigns m ON m.campaign_id=a.campaign_id WHERE m.account_id=?)))",
+        ).run(projectId, start, end, aid, aid);
         db.prepare(
           'DELETE FROM spend WHERE campaign_id IN (SELECT campaign_id FROM meta_campaigns WHERE account_id=?) AND campaign_id IN (SELECT id FROM campaigns WHERE project_id=?) AND day BETWEEN ? AND ?',
         ).run(aid, projectId, start, end);
@@ -284,7 +287,44 @@ export function createMetaService(db, key, transport = fetch) {
               r.name || 'Anúncio Meta',
               ['PAUSED', 'ARCHIVED', 'DELETED'].includes(r.status || r.effective_status) ? 0 : 1,
             );
+        const saveFunnel = (r, level) =>
+          db
+            .prepare('INSERT OR REPLACE INTO entity_funnel VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+            .run(
+              projectId,
+              level,
+              level === 'campaign'
+                ? campaignKey(projectId, r.campaign_id)
+                : entityKey('ad', projectId, r.ad_id),
+              r.adset_id ? entityKey('set', projectId, r.adset_id) : null,
+              r.date_start,
+              r.inline_link_clicks === undefined
+                ? action(r.actions, ['link_click'])
+                : Number(r.inline_link_clicks) || 0,
+              action(r.actions, ['landing_page_view']),
+              action(r.actions, [
+                'offsite_conversion.fb_pixel_initiate_checkout',
+                'omni_initiated_checkout',
+                'initiate_checkout',
+              ]),
+              action(r.actions, [
+                'offsite_conversion.fb_pixel_purchase',
+                'omni_purchase',
+                'purchase',
+              ]),
+              action(r.actions, [
+                'offsite_conversion.fb_pixel_lead',
+                'onsite_conversion.lead_grouped',
+                'lead',
+              ]),
+              action(r.actions, [
+                'offsite_conversion.fb_pixel_add_to_cart',
+                'omni_add_to_cart',
+                'add_to_cart',
+              ]),
+            );
         for (const r of d.campaignRows) {
+          saveFunnel(r, 'campaign');
           const cid = campaignKey(projectId, r.campaign_id);
           db.prepare(
             'INSERT INTO spend VALUES(?,?,?,?,?) ON CONFLICT(campaign_id,day) DO UPDATE SET amount=excluded.amount,impressions=excluded.impressions,clicks=excluded.clicks',
@@ -316,7 +356,8 @@ export function createMetaService(db, key, transport = fetch) {
             ]),
           );
         }
-        for (const r of d.adRows)
+        for (const r of d.adRows) {
+          saveFunnel(r, 'ad');
           db.prepare(
             'INSERT INTO ad_insights VALUES(?,?,?,?,?) ON CONFLICT(ad_id,day) DO UPDATE SET amount=excluded.amount,impressions=excluded.impressions,clicks=excluded.clicks',
           ).run(
@@ -326,6 +367,7 @@ export function createMetaService(db, key, transport = fetch) {
             Number(r.impressions) || 0,
             Number(r.clicks) || 0,
           );
+        }
       }
       // Resolve webhooks that arrived before this campaign/ad was imported.
       for (const sale of db
@@ -417,6 +459,77 @@ export function createMetaService(db, key, transport = fetch) {
       );
     return Boolean(result.changes);
   }
+  function enqueueEvent(pixelId, queueId, data) {
+    const supported = new Set([
+      'PageView',
+      'ViewContent',
+      'AddToCart',
+      'AddToWishlist',
+      'InitiateCheckout',
+      'AddPaymentInfo',
+      'Lead',
+      'CompleteRegistration',
+      'Contact',
+      'Schedule',
+      'Search',
+      'Subscribe',
+      'StartTrial',
+      'SubmitApplication',
+      'Donate',
+      'CustomizeProduct',
+      'FindLocation',
+    ]);
+    // Operational events and browser Purchases never become confirmed conversions.
+    if (!supported.has(data.event_name) && !data.send_capi) return false;
+    if (data.event_name === 'Purchase') return false;
+    const pixel = db
+      .prepare(
+        'SELECT p.* FROM pixels p JOIN pixel_capi c ON c.pixel_id=p.id WHERE p.id=? AND p.active=1',
+      )
+      .get(pixelId);
+    if (!pixel) return false;
+    const user = {};
+    if (data.visitor_id) user.external_id = [digest(data.visitor_id)];
+    if (data.customer_email) user.em = [digest(data.customer_email.trim().toLowerCase())];
+    if (data.customer_phone) user.ph = [digest(data.customer_phone.replace(/\D/g, ''))];
+    if (data.fbp) user.fbp = data.fbp;
+    if (data.fbc) user.fbc = data.fbc;
+    if (data.client_ip_address) user.client_ip_address = data.client_ip_address;
+    if (data.client_user_agent) user.client_user_agent = data.client_user_agent;
+    const eventTime = Math.floor(new Date(data.occurred_at || Date.now()).getTime() / 1000);
+    const error =
+      eventTime < Date.now() / 1000 - 7 * 86400 || eventTime > Date.now() / 1000 + 300
+        ? 'Data do evento fora da janela de envio CAPI.'
+        : null;
+    const payload = {
+      event_name: data.event_name,
+      event_time: eventTime,
+      event_id: data.event_id || queueId,
+      action_source: data.action_source || 'website',
+      event_source_url: pixel.domain,
+      user_data: user,
+      custom_data: {
+        ...(data.value != null ? { value: data.value, currency: data.currency || 'BRL' } : {}),
+        ...(data.content_id ? { content_ids: [data.content_id], content_type: 'product' } : {}),
+        ...(data.content_name ? { content_name: data.content_name } : {}),
+      },
+    };
+    return Boolean(
+      db
+        .prepare('INSERT OR IGNORE INTO capi_queue VALUES(?,?,?,?,?,?,?,?,?)')
+        .run(
+          'event_' + digest(pixelId + ':' + queueId).slice(0, 32),
+          pixel.project_id,
+          pixel.id,
+          JSON.stringify(payload),
+          error ? 'failed' : 'pending',
+          error ? 5 : 0,
+          0,
+          error,
+          new Date().toISOString(),
+        ).changes,
+    );
+  }
   let running = false;
   async function drain() {
     if (running) return;
@@ -483,6 +596,7 @@ export function createMetaService(db, key, transport = fetch) {
     sync,
     configurePixel,
     enqueue,
+    enqueueEvent,
     drain,
     configured: Boolean(/^v\d+\.\d+$/.test(process.env.META_GRAPH_VERSION || '')),
   };

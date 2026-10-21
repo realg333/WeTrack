@@ -32,6 +32,14 @@ import { createPlatformService } from './platforms.mjs';
 import { providerSchema } from './platform-adapters.mjs';
 import { createRuleService } from './rules.mjs';
 import { configuredRules, ruleReport } from './rule-model.mjs';
+import {
+  registerTracking,
+  eventNameSchema,
+  signalSchema,
+  saveSignals,
+  recoverReference,
+} from './tracking.mjs';
+import { normalizeUtmify } from './utmify-format.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -98,6 +106,9 @@ export function createApp(db, options = {}) {
   const publicPath = (req) =>
     req.path.startsWith('/api/collect/') ||
     req.path.startsWith('/api/webhooks/') ||
+    req.path.startsWith('/api/r/') ||
+    req.path === '/api/track-events' ||
+    req.path === '/api/compat/utmify' ||
     req.path.startsWith('/api/meta/oauth/start/') ||
     req.path === '/api/meta/oauth/callback' ||
     req.path === '/api/internal/capi-drain' ||
@@ -127,6 +138,7 @@ export function createApp(db, options = {}) {
     }
     next();
   });
+  registerTracking(app, db, { project, range, meta });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   if (options.storageCheck)
     app.get('/api/internal/storage-check', async (req, res) => {
@@ -772,11 +784,22 @@ export function createApp(db, options = {}) {
     Object.entries(data).forEach(([k, v]) => stmt.run(k, JSON.stringify(v)));
     res.json({ ok: true });
   });
-  app.post('/api/webhooks/:token', (req, res) => {
+  const receiveSale = (req, res) => {
     const integration = db
       .prepare('SELECT * FROM integrations WHERE token_hash=? AND active=1')
       .get(hash(req.params.token));
     if (!integration) return res.status(401).json({ error: 'Token inválido ou revogado.' });
+    if (req.utmifyFormat) {
+      if (
+        db.prepare('SELECT 1 FROM provider_connections WHERE integration_id=?').get(integration.id)
+      )
+        return res
+          .status(400)
+          .json({ error: 'Use um token da API personalizada para este formato.' });
+      const normalized = normalizeUtmify(req.body);
+      if (normalized.isTest) return res.json({ ok: true, test: true });
+      req.body = normalized.sale;
+    }
     if (
       db.prepare('SELECT 1 FROM provider_connections WHERE integration_id=?').get(integration.id)
     ) {
@@ -785,11 +808,25 @@ export function createApp(db, options = {}) {
       if (!options.serverless) void app.locals.drain().catch(() => {});
       return;
     }
-    const data = webhookSchema.parse(req.body);
+    const data = recoverReference(db, integration.project_id, webhookSchema.parse(req.body));
     const campaign = resolveCampaign(db, integration.project_id, data.utm_campaign);
     const previous = db
       .prepare('SELECT id,status FROM sales WHERE integration_id=? AND external_id=?')
       .get(integration.id, data.order_id);
+    if (
+      req.utmifyFormat &&
+      previous &&
+      ((['refunded', 'chargeback'].includes(previous.status) &&
+        !['refunded', 'chargeback'].includes(data.status)) ||
+        (previous.status === 'approved' && ['pending', 'canceled'].includes(data.status)))
+    )
+      return res.json({
+        ok: true,
+        id: previous.id,
+        duplicate: true,
+        ignored: true,
+        capi: 'not_queued',
+      });
     const time = data.created_at || now();
     const sid = previous?.id || id('sale');
     const manual = isManualAttribution(db, sid);
@@ -874,6 +911,12 @@ export function createApp(db, options = {}) {
       duplicate: Boolean(previous),
       capi: queued ? 'queued' : 'not_queued',
     });
+  };
+  app.post('/api/webhooks/:token', receiveSale);
+  app.post('/api/compat/utmify', (req, res) => {
+    req.params.token = String(req.headers['x-api-token'] || '');
+    req.utmifyFormat = true;
+    receiveSale(req, res);
   });
   app.options('/api/collect/:pixel', (req, res) => {
     const pixel = db
@@ -902,19 +945,7 @@ export function createApp(db, options = {}) {
           .optional(),
         fbp: z.string().max(200).optional(),
         fbc: z.string().max(300).optional(),
-        event_name: z.enum([
-          'PageView',
-          'ViewContent',
-          'SectionView',
-          'Click',
-          'InitiateCheckout',
-          'Purchase',
-          'PageEngagement',
-          'PageExit',
-          'PageReturn',
-          'CheckoutReturn',
-          'ScrollDepth',
-        ]),
+        event_name: eventNameSchema,
         page_view_id: z.string().min(8).max(100).optional(),
         duration_ms: z.number().int().min(0).max(86400000).optional(),
         active_ms: z.number().int().min(0).max(86400000).optional(),
@@ -944,6 +975,7 @@ export function createApp(db, options = {}) {
         utm_source: z.string().max(100).default('direct'),
         utm_campaign: z.string().max(200).default(''),
       })
+      .extend(signalSchema.shape)
       .parse(req.body);
     if (data.active_ms != null && data.active_ms > (data.duration_ms ?? 0))
       return res.status(400).json({ error: 'Tempo ativo maior que o tempo na página.' });
@@ -1013,6 +1045,18 @@ export function createApp(db, options = {}) {
         }),
         Date.now() + 30 * 86400000,
       );
+    if (inserted.changes) {
+      saveSignals(db, data, 'browser');
+      const enabled = db
+        .prepare('SELECT capi_events FROM pixel_tracking WHERE pixel_id=?')
+        .get(pixel.id)?.capi_events;
+      if (enabled)
+        meta.enqueueEvent(pixel.id, data.event_id, {
+          ...data,
+          client_ip_address: req.ip,
+          client_user_agent: String(req.headers['user-agent'] || '').slice(0, 500),
+        });
+    }
     res.json({ ok: true });
   });
   app.get('/pixel.js', (_req, res) =>

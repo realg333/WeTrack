@@ -5977,3 +5977,219 @@ form > label > input {
     margin-left: 0;
   }
 }
+/* Dense reporting controls share the existing dashboard palette. */
+.column-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.column-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+  border-block: 1px solid var(--border);
+  padding-block: 16px;
+}
+.column-catalog,
+.column-selection {
+  max-height: 48vh;
+  overflow: auto;
+  padding-right: 8px;
+}
+.column-catalog h3 {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.modal .column-catalog .search-box {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.modal .column-catalog .search-box > input {
+  margin: 0;
+  padding: 0;
+}
+.column-option {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 5px;
+  margin: 0 !important;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.column-option input {
+  width: 16px !important;
+  height: 16px;
+  flex: none;
+  margin-top: 3px;
+  accent-color: var(--green);
+}
+.column-option strong,
+.column-option small {
+  display: block;
+}
+.column-option small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+.column-selection h3 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.column-selection ol {
+  list-style: none;
+  padding: 0;
+  margin-top: 16px;
+}
+.column-selection li {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.column-selection li > span {
+  flex: 1;
+  font-size: 12px;
+}
+.column-selection .icon-button {
+  width: 27px;
+  height: 27px;
+}
+.column-save-model {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin-top: 15px;
+}
+.column-save-model label {
+  flex: 1;
+  margin: 0 !important;
+}
+.column-save-model input {
+  margin-top: 6px;
+}
+.column-preset {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.column-sort {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+}
+.campaign-table td,
+.campaign-table th {
+  white-space: nowrap;
+}
+.tracking-center {
+  display: grid;
+  gap: 20px;
+}
+.tracking-intro {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.tracking-intro h2 {
+  margin: 8px 0;
+}
+.tracking-center .panel-heading {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.tracking-center .panel-heading p {
+  margin-top: 6px;
+}
+.tracking-links {
+  padding: 0 22px;
+}
+.tracking-links article,
+.tracking-pixel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.tracking-links article > div,
+.tracking-pixel > div {
+  flex: 1;
+  min-width: 0;
+}
+.tracking-links small,
+.tracking-pixel small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.tracking-links code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.tracking-pixel {
+  margin: 0 22px;
+}
+.tracking-guide details {
+  margin: 0 22px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.tracking-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.tracking-guide p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.tracking-guide pre {
+  overflow: auto;
+  padding: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 12px;
+}
+@media (max-width: 700px) {
+  .column-picker-grid {
+    grid-template-columns: 1fr;
+  }
+  .column-catalog {
+    max-height: 32vh;
+  }
+  .column-selection {
+    max-height: 25vh;
+  }
+  .column-save-model {
+    flex-wrap: wrap;
+  }
+  .tracking-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -125,6 +125,14 @@ export type Journey = {
   events: {
     id: string;
     event_name: string;
+    channel?: string | null;
+    value?: number | null;
+    currency?: string | null;
+    content_id?: string | null;
+    content_name?: string | null;
+    first_source?: string | null;
+    first_campaign?: string | null;
+    click_ids?: string | null;
     page_url: string;
     page_title: string | null;
     referrer: string | null;

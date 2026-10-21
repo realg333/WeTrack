@@ -46,6 +46,10 @@ export const webhookSchema = z.object({
   adset_id: z.string().max(200).optional(),
   ad_id: z.string().max(200).optional(),
   visitor_id: z.string().max(100).optional(),
+  attribution_code: z
+    .string()
+    .regex(/^wt[a-zA-Z0-9]{16,26}$/)
+    .optional(),
   created_at: z.string().datetime({ offset: true }).optional(),
   approved_at: z.string().datetime({ offset: true }).optional(),
   action_source: z.enum(['website', 'system_generated']).optional(),

@@ -124,7 +124,9 @@ test('pixel tracks SPA pages, deduplicates section views, preserves attribution 
   assert.ok(events.every((e) => e.visitor_id === visitor && e.session_id === session));
   assert.ok(!JSON.stringify(events).includes('private@example.com'));
   context.WeTrack.track('Unknown');
-  assert.notEqual(events.at(-1).event_name, 'Unknown');
+  assert.equal(events.at(-1).event_name, 'Unknown'); // Custom event names are supported.
+  context.WeTrack.track('invalid event name');
+  assert.equal(events.at(-1).event_name, 'Unknown');
   f.advance(1800001);
   context.WeTrack.track('ViewContent');
   assert.notEqual(context.WeTrack.sessionId, session);

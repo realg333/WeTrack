@@ -24,6 +24,21 @@ const labels: Record<string, string> = {
   PageReturn: 'Voltou à página/aba',
   CheckoutReturn: 'Voltou após clique no checkout',
   ScrollDepth: 'Rolou a página',
+  AddToCart: 'Adicionou ao carrinho',
+  AddPaymentInfo: 'Informou pagamento',
+  AddToWishlist: 'Adicionou à lista de desejos',
+  Lead: 'Lead confirmado',
+  Contact: 'Contato confirmado',
+  WhatsAppClick: 'Clicou no WhatsApp',
+  FormSubmit: 'Tentou enviar formulário',
+  CompleteRegistration: 'Concluiu cadastro',
+  Schedule: 'Agendamento registrado',
+  Subscribe: 'Assinatura registrada',
+  StartTrial: 'Iniciou teste',
+  VideoPlay: 'Reproduziu vídeo',
+  VideoProgress: 'Avançou no vídeo',
+  VideoComplete: 'Concluiu vídeo',
+  LinkClick: 'Abriu smart link',
 };
 const durationLabel = (ms: number) => {
   const seconds = Math.floor(ms / 1000);
@@ -348,6 +363,41 @@ export default function VisitorsPage({
                           <strong>{labels[event.event_name] || event.event_name}</strong>
                           <p>{event.page_title || pathLabel(event.page_url)}</p>
                           <small className="journey-url">{pathLabel(event.page_url)}</small>
+                          {event.channel && (
+                            <small>
+                              Coleta:{' '}
+                              {(
+                                {
+                                  browser: 'pixel',
+                                  server: 'API / CRM',
+                                  manual: 'manual',
+                                  smart_link: 'smart link',
+                                } as Record<string, string>
+                              )[event.channel] || event.channel}
+                            </small>
+                          )}
+                          {(event.content_name || event.content_id) && (
+                            <p className="journey-detail">
+                              Conteúdo: {event.content_name || event.content_id}
+                            </p>
+                          )}
+                          {event.value != null && (
+                            <p className="journey-detail">
+                              Valor do evento: {brl(event.value)} (não compõe faturamento)
+                            </p>
+                          )}
+                          {event.first_source && (
+                            <p className="journey-detail">
+                              Primeira origem: {sourceName(event.first_source)}
+                              {event.first_campaign ? ` · ${event.first_campaign}` : ''}
+                            </p>
+                          )}
+                          {event.click_ids && event.click_ids !== '{}' && (
+                            <details>
+                              <summary>Identificadores de clique</summary>
+                              <small className="journey-url">{event.click_ids}</small>
+                            </details>
+                          )}
                           {event.event_name === 'PageView' && event.duration_ms != null && (
                             <p className="journey-detail">
                               Tempo visível: {durationLabel(event.duration_ms)} · Ativo estimado:{' '}

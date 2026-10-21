@@ -1,5 +1,6 @@
 import { summarize, money, ratio } from './domain.mjs';
 import { ruleReport } from './rule-model.mjs';
+import { enrichRows } from './analytics.mjs';
 
 export const campaignVisible = `NOT EXISTS (SELECT 1 FROM meta_campaigns mc WHERE mc.campaign_id=c.id) OR EXISTS (SELECT 1 FROM meta_campaigns mc JOIN meta_account_selection sel ON sel.account_id=mc.account_id AND sel.project_id=c.project_id WHERE mc.campaign_id=c.id AND sel.enabled=1)`;
 export function visibleCampaigns(db, projectId) {
@@ -181,19 +182,27 @@ export function dashboardReport(db, p, start, end) {
 export function hierarchyReport(db, projectId, start, end, level, parent) {
   const sales = reportSales(db, projectId, start, end);
   if (level === 'campaigns')
-    return visibleCampaigns(db, projectId).map((c) => {
-      const s = spendFor(db, c.id, start, end);
-      return {
-        ...c,
-        ...summarize(
-          sales.filter((r) => r.campaign_id === c.id),
-          s.amount,
-          0,
-        ),
-        clicks: s.clicks,
-        impressions: s.impressions,
-      };
-    });
+    return enrichRows(
+      db,
+      projectId,
+      start,
+      end,
+      level,
+      visibleCampaigns(db, projectId).map((c) => {
+        const s = spendFor(db, c.id, start, end);
+        return {
+          ...c,
+          ...summarize(
+            sales.filter((r) => r.campaign_id === c.id),
+            s.amount,
+            0,
+          ),
+          clicks: s.clicks,
+          impressions: s.impressions,
+        };
+      }),
+      sales,
+    );
   if (
     level === 'adsets' &&
     parent &&
@@ -222,30 +231,38 @@ export function hierarchyReport(db, projectId, start, end, level, parent) {
             `SELECT ad.*,a.campaign_id,a.name AS adset_name,c.name AS campaign_name,c.source,m.account_id,0 AS budget FROM ads ad JOIN ad_sets a ON a.id=ad.adset_id JOIN campaigns c ON c.id=a.campaign_id LEFT JOIN meta_campaigns m ON m.campaign_id=c.id WHERE c.project_id=? AND (${campaignVisible}) ${parent ? 'AND a.id=?' : ''} ORDER BY ad.name`,
           )
           .all(...(parent ? [projectId, parent] : [projectId]));
-  return rows.map((r) => {
-    const amounts =
-      level === 'adsets'
-        ? db
-            .prepare(
-              'SELECT COALESCE(SUM(i.amount),0) AS amount,COALESCE(SUM(i.clicks),0) AS clicks,COALESCE(SUM(i.impressions),0) AS impressions FROM ad_insights i JOIN ads ad ON ad.id=i.ad_id WHERE ad.adset_id=? AND i.day BETWEEN ? AND ?',
-            )
-            .get(r.id, start, end)
-        : db
-            .prepare(
-              'SELECT COALESCE(SUM(amount),0) AS amount,COALESCE(SUM(clicks),0) AS clicks,COALESCE(SUM(impressions),0) AS impressions FROM ad_insights WHERE ad_id=? AND day BETWEEN ? AND ?',
-            )
-            .get(r.id, start, end);
-    const key = level === 'adsets' ? 'adset_id' : 'ad_id';
-    const matching = sales.filter(
-      (s) => s[key] === r.id || (r.external_id && s[key] === r.external_id),
-    );
-    return {
-      ...r,
-      ...summarize(matching, amounts.amount, 0),
-      clicks: amounts.clicks,
-      impressions: amounts.impressions,
-    };
-  });
+  return enrichRows(
+    db,
+    projectId,
+    start,
+    end,
+    level,
+    rows.map((r) => {
+      const amounts =
+        level === 'adsets'
+          ? db
+              .prepare(
+                'SELECT COALESCE(SUM(i.amount),0) AS amount,COALESCE(SUM(i.clicks),0) AS clicks,COALESCE(SUM(i.impressions),0) AS impressions FROM ad_insights i JOIN ads ad ON ad.id=i.ad_id WHERE ad.adset_id=? AND i.day BETWEEN ? AND ?',
+              )
+              .get(r.id, start, end)
+          : db
+              .prepare(
+                'SELECT COALESCE(SUM(amount),0) AS amount,COALESCE(SUM(clicks),0) AS clicks,COALESCE(SUM(impressions),0) AS impressions FROM ad_insights WHERE ad_id=? AND day BETWEEN ? AND ?',
+              )
+              .get(r.id, start, end);
+      const key = level === 'adsets' ? 'adset_id' : 'ad_id';
+      const matching = sales.filter(
+        (s) => s[key] === r.id || (r.external_id && s[key] === r.external_id),
+      );
+      return {
+        ...r,
+        ...summarize(matching, amounts.amount, 0),
+        clicks: amounts.clicks,
+        impressions: amounts.impressions,
+      };
+    }),
+    sales,
+  );
 }
 
 export function visitorList(db, projectId, start, end, query = '', page = 1) {
@@ -272,11 +289,13 @@ export function visitorJourney(db, projectId, visitorId, start, end) {
         WHERE e.project_id=? AND e.visitor_id=? AND e.day BETWEEN ? AND ? GROUP BY t.page_view_id
       )
       SELECT e.id,e.event_name,e.page_url,e.utm_source,e.utm_campaign,e.created_at,d.session_id,d.page_title,d.referrer,d.section,d.target_url,
+        s.channel,s.value,s.currency,s.content_id,s.content_name,s.click_ids,
+        json_extract(s.first_touch,'$.utm_source') AS first_source,json_extract(s.first_touch,'$.utm_campaign') AS first_campaign,
         t.page_view_id,t.reason,t.away_ms,COALESCE(t.occurred_at,e.created_at) AS occurred_at,
         CASE WHEN e.event_name='PageView' THEN m.duration_ms ELSE t.duration_ms END AS duration_ms,
         CASE WHEN e.event_name='PageView' THEN m.active_ms ELSE t.active_ms END AS active_ms,
         CASE WHEN e.event_name='PageView' THEN m.scroll_depth ELSE t.scroll_depth END AS scroll_depth
-      FROM events e LEFT JOIN event_details d ON d.event_id=e.id LEFT JOIN event_engagement t ON t.event_id=e.id
+      FROM events e LEFT JOIN event_details d ON d.event_id=e.id LEFT JOIN event_engagement t ON t.event_id=e.id LEFT JOIN event_signals s ON s.event_id=e.id
         LEFT JOIN engagement m ON m.page_view_id=t.page_view_id
       WHERE e.project_id=? AND e.visitor_id=? AND e.day BETWEEN ? AND ? AND e.event_name<>'PageEngagement'
       ORDER BY COALESCE(t.occurred_at,e.created_at),e.rowid LIMIT 500`,

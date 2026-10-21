@@ -61,8 +61,12 @@
           e sessão, páginas e títulos, origem da visita, parâmetros UTM, horários, cliques, seções
           visualizadas e eventos de checkout. As URLs de páginas, origem e destinos são armazenadas
           sem a consulta e o fragmento. O script não lê valores digitados em formulários. Quando
-          disponíveis no site, os cookies publicitários fbp e fbc podem ser usados na atribuição e
-          no envio de conversões. Um código curto relaciona o checkout Hotmart à visita.
+          instalado após o consentimento aplicável, o pixel pode criar os cookies publicitários fbp
+          e fbc, preservar identificadores de clique e registrar eventos de comércio, vídeo e
+          formulários marcados, sem ler seus campos. Primeira origem, último clique e um código
+          curto relacionam site, smart links, WhatsApp e checkout. O clique no WhatsApp não permite
+          ler mensagens. No envio opcional de eventos à Meta, IP e identificação do navegador podem
+          compor o payload.
         </li>
         <li>
           <strong>Vendas recebidas por integração:</strong> identificador do pedido, produto, valor,
@@ -116,9 +120,13 @@
         O painel usa um cookie de sessão para autenticação e armazena preferências, como tema e
         operação selecionada. O fluxo de conexão Meta usa um cookie temporário para validar a
         autorização. O pixel mantém um identificador de visitante no armazenamento local do
-        navegador, dados de atribuição por sete dias e uma sessão que é renovada após trinta minutos
-        de inatividade. O identificador de visitante permanece até a remoção do armazenamento do
-        site.
+        navegador, último clique por sete dias, primeira origem por trinta dias e uma sessão
+        renovada após trinta minutos de inatividade. O identificador de visitante permanece até a
+        remoção do armazenamento do site.
+      </p>
+      <p>
+        Smart links usam um cookie pseudônimo por sete dias. Referências de atribuição expiram após
+        trinta dias. As colunas e modelos de relatório são salvos no servidor por operação.
       </p>
       <p>
         O responsável pelo site integrado deve apresentar as opções de privacidade e obter

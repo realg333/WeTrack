@@ -17,6 +17,9 @@ export default async function handler(req, res) {
     if (
       req.method === 'POST' &&
       (/^\/api\/webhooks\//.test(req.url) ||
+        /^\/api\/(?:collect\/|track-events(?:\?|$)|tracking\/events(?:\?|$)|compat\/utmify(?:\?|$))/.test(
+          req.url,
+        ) ||
         /^\/api\/platform-connections\/[^/]+\/reconcile/.test(req.url) ||
         /^\/api\/(?:capi|platform-receipts)\/[^/]+\/retry/.test(req.url))
     ) {

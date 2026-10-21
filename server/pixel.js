@@ -13,6 +13,11 @@
     'utm_term',
     'fbclid',
     'gclid',
+    'ttclid',
+    'msclkid',
+    'gbraid',
+    'wbraid',
+    'kwai_click_id',
   ];
   const uuid = () =>
     crypto.randomUUID
@@ -29,6 +34,7 @@
   };
   let visitor = uuid(),
     attribution = {},
+    firstTouch = {},
     checkoutCode =
       'wt' +
       uuid()
@@ -38,6 +44,8 @@
   try {
     visitor = localStorage.getItem('wt_visitor') || visitor;
     localStorage.setItem('wt_visitor', visitor);
+    const first = JSON.parse(localStorage.getItem('wt_first_touch') || '{}');
+    if (first.expires > Date.now()) firstTouch = first.params || {};
     const saved = JSON.parse(localStorage.getItem('wt_attribution') || '{}');
     if (saved.expires > Date.now()) {
       attribution = saved.params || {};
@@ -48,6 +56,17 @@
     if (savedSession.id && savedSession.seen > Date.now() - 1800000) session = savedSession;
   } catch {
     /* Storage can be unavailable. Tracking still works in this page. */
+  }
+  const handoff = new URLSearchParams(location.search);
+  if (
+    /^wt[a-zA-Z0-9]{16,26}$/.test(handoff.get('wt_ref') || '') &&
+    /^[a-zA-Z0-9_-]{8,100}$/.test(handoff.get('visitor_id') || '')
+  ) {
+    visitor = handoff.get('visitor_id');
+    checkoutCode = handoff.get('wt_ref');
+    try {
+      localStorage.setItem('wt_visitor', visitor);
+    } catch {}
   }
   const captureAttribution = () => {
     const params = new URLSearchParams(location.search);
@@ -61,8 +80,23 @@
         ? 'facebook'
         : params.has('gclid')
           ? 'google'
-          : 'direct';
+          : params.has('ttclid')
+            ? 'tiktok'
+            : params.has('msclkid')
+              ? 'bing'
+              : params.has('kwai_click_id')
+                ? 'kwai'
+                : 'direct';
     attribution = next;
+    if (!Object.keys(firstTouch).length) {
+      firstTouch = { ...next };
+      try {
+        localStorage.setItem(
+          'wt_first_touch',
+          JSON.stringify({ params: firstTouch, expires: Date.now() + 30 * 86400000 }),
+        );
+      } catch {}
+    }
     checkoutCode =
       'wt' +
       uuid()
@@ -76,6 +110,33 @@
     } catch {}
   };
   captureAttribution();
+  if (/^wt[a-zA-Z0-9]{16,26}$/.test(handoff.get('wt_ref') || ''))
+    checkoutCode = handoff.get('wt_ref');
+  if (!Object.keys(firstTouch).length) {
+    firstTouch = { ...attribution, utm_source: attribution.utm_source || 'direct' };
+    try {
+      localStorage.setItem(
+        'wt_first_touch',
+        JSON.stringify({ params: firstTouch, expires: Date.now() + 30 * 86400000 }),
+      );
+    } catch {}
+  }
+  let fbp = (String(document.cookie || '').match(/(?:^|;\s*)_fbp=([^;]+)/)?.[1] || '').slice(
+    0,
+    200,
+  );
+  let fbc = (String(document.cookie || '').match(/(?:^|;\s*)_fbc=([^;]+)/)?.[1] || '').slice(
+    0,
+    300,
+  );
+  if (!fbp) fbp = `fb.1.${Date.now()}.${Math.floor(Math.random() * 1000000000)}`;
+  if (attribution.fbclid && !fbc.endsWith('.' + attribution.fbclid))
+    fbc = `fb.1.${Date.now()}.${attribution.fbclid}`;
+  try {
+    document.cookie = `_fbp=${fbp}; Path=/; Max-Age=604800; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+    if (fbc)
+      document.cookie = `_fbc=${fbc}; Path=/; Max-Age=604800; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+  } catch {}
   const checkoutKey = 'wt_checkout_' + pixel;
   let pendingCheckout = null;
   const readCheckout = () => {
@@ -134,7 +195,7 @@
     'ScrollDepth',
   ]);
   const track = (event_name, details = {}) => {
-    if (!allowed.has(event_name)) return;
+    if (!allowed.has(event_name) && !/^[A-Za-z][A-Za-z0-9_]{1,63}$/.test(event_name)) return;
     sample();
     if (event_name === 'InitiateCheckout') {
       pendingCheckout = {
@@ -152,16 +213,34 @@
     try {
       sessionStorage.setItem('wt_session', JSON.stringify(session));
     } catch {}
+    const eventId =
+      typeof details.event_id === 'string' &&
+      details.event_id.length >= 8 &&
+      details.event_id.length <= 100
+        ? details.event_id
+        : uuid();
     const body = JSON.stringify({
-      event_id: uuid(),
+      event_id: eventId,
       visitor_id: visitor,
       attribution_code: checkoutCode,
-      fbp:
-        (String(document.cookie || '').match(/(?:^|;\s*)_fbp=([^;]+)/)?.[1] || '').slice(0, 200) ||
-        undefined,
-      fbc:
-        (String(document.cookie || '').match(/(?:^|;\s*)_fbc=([^;]+)/)?.[1] || '').slice(0, 300) ||
-        undefined,
+      fbp,
+      fbc: fbc || undefined,
+      value:
+        typeof details.value === 'number' &&
+        Number.isFinite(details.value) &&
+        details.value >= 0 &&
+        details.value <= 10000000
+          ? details.value
+          : undefined,
+      currency: 'BRL',
+      content_id: details.content_id ? String(details.content_id).slice(0, 120) : undefined,
+      content_name: details.content_name ? String(details.content_name).slice(0, 150) : undefined,
+      click_ids: Object.fromEntries(
+        keys.filter((k) => !k.startsWith('utm_') && attribution[k]).map((k) => [k, attribution[k]]),
+      ),
+      first_touch: Object.fromEntries(
+        keys.filter((k) => k.startsWith('utm_') && firstTouch[k]).map((k) => [k, firstTouch[k]]),
+      ),
       session_id: session.id,
       event_name,
       page_url: pageUrl,
@@ -181,7 +260,8 @@
     });
     if (details.beacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
       try {
-        if (navigator.sendBeacon(base + '/api/collect/' + encodeURIComponent(pixel), body)) return;
+        if (navigator.sendBeacon(base + '/api/collect/' + encodeURIComponent(pixel), body))
+          return eventId;
       } catch {}
     }
     fetch(base + '/api/collect/' + encodeURIComponent(pixel), {
@@ -191,6 +271,7 @@
       keepalive: true,
       credentials: 'omit',
     }).catch(() => {});
+    return eventId;
   };
   const checkoutReturned = () => {
     const pending = readCheckout();
@@ -223,6 +304,12 @@
     visitorId: visitor,
     get sessionId() {
       return session.id;
+    },
+    get attribution() {
+      return { ...attribution };
+    },
+    get firstTouch() {
+      return { ...firstTouch };
     },
   };
   track('PageView');
@@ -377,9 +464,17 @@
   document.addEventListener(
     'click',
     (e) => {
-      const link = e.target.closest?.('[data-wetrack-checkout], a[href]');
+      const link = e.target.closest?.('[data-wetrack-event], [data-wetrack-checkout], a[href]');
       if (!link) return;
       activity();
+      const customEvent = link.getAttribute?.('data-wetrack-event');
+      if (customEvent)
+        track(customEvent, {
+          content_id: link.getAttribute('data-wetrack-content-id'),
+          value: link.hasAttribute('data-wetrack-value')
+            ? Number(link.getAttribute('data-wetrack-value'))
+            : undefined,
+        });
       if (!link.href) {
         if (link.hasAttribute('data-wetrack-checkout')) {
           track('Click');
@@ -390,6 +485,28 @@
       try {
         const url = new URL(link.href, location.href);
         if (!['http:', 'https:'].includes(url.protocol)) return;
+        if (['wa.me', 'api.whatsapp.com', 'web.whatsapp.com'].includes(url.hostname)) {
+          if (!String(url.searchParams.get('text') || '').includes(checkoutCode))
+            url.searchParams.set(
+              'text',
+              `${url.searchParams.get('text') || ''}\n[${checkoutCode}]`.trim(),
+            );
+          link.href = url.href;
+          track('WhatsAppClick', { target_url: url.origin });
+          return;
+        }
+        const isCheckout =
+          link.hasAttribute('data-wetrack-checkout') ||
+          ['pay.hotmart.com', 'pay.cakto.com.br'].includes(url.hostname) ||
+          (checkoutUrl
+            ? url.origin === checkoutUrl.origin &&
+              (url.pathname === checkoutUrl.pathname ||
+                url.pathname.startsWith(checkoutUrl.pathname.replace(/\/$/, '') + '/'))
+            : checkoutOrigin && url.origin === checkoutOrigin);
+        if (isCheckout) {
+          if (!url.searchParams.has('visitor_id')) url.searchParams.set('visitor_id', visitor);
+          if (!url.searchParams.has('wt_ref')) url.searchParams.set('wt_ref', checkoutCode);
+        }
         keys.forEach((key) => {
           if (attribution[key] && !url.searchParams.has(key))
             url.searchParams.set(key, attribution[key]);
@@ -400,19 +517,61 @@
           url.searchParams.set('sck', checkoutCode);
         link.href = url.href;
         track('Click', { target_url: url.href });
-        if (
-          link.hasAttribute('data-wetrack-checkout') ||
-          ['pay.hotmart.com', 'pay.cakto.com.br'].includes(url.hostname) ||
-          (checkoutUrl
-            ? url.origin === checkoutUrl.origin &&
-              (url.pathname === checkoutUrl.pathname ||
-                url.pathname.startsWith(checkoutUrl.pathname.replace(/\/$/, '') + '/'))
-            : checkoutOrigin && url.origin === checkoutOrigin)
-        )
-          track('InitiateCheckout', { target_url: url.href });
+        if (isCheckout) track('InitiateCheckout', { target_url: url.href });
       } catch {
         /* Ignore non-HTTP links. */
       }
+    },
+    true,
+  );
+  document.addEventListener(
+    'submit',
+    (e) => {
+      if (e.target.matches?.('form[data-wetrack-form]'))
+        track('FormSubmit', { section: e.target.getAttribute('data-wetrack-form') || 'form' });
+    },
+    true,
+  );
+  const videoMilestones = new WeakMap();
+  document.addEventListener(
+    'play',
+    (e) => {
+      if (e.target.matches?.('video[data-wetrack-video]'))
+        track('VideoPlay', { content_id: e.target.getAttribute('data-wetrack-video') || 'video' });
+    },
+    true,
+  );
+  document.addEventListener(
+    'timeupdate',
+    (e) => {
+      const v = e.target;
+      if (
+        !v.matches?.('video[data-wetrack-video]') ||
+        !Number.isFinite(v.duration) ||
+        v.duration <= 0
+      )
+        return;
+      const seen = videoMilestones.get(v) || new Set();
+      [25, 50, 75].forEach((milestone) => {
+        if ((v.currentTime / v.duration) * 100 >= milestone && !seen.has(milestone)) {
+          seen.add(milestone);
+          track('VideoProgress', {
+            content_id: v.getAttribute('data-wetrack-video') || 'video',
+            section: milestone + '%',
+          });
+        }
+      });
+      videoMilestones.set(v, seen);
+    },
+    true,
+  );
+  document.addEventListener(
+    'ended',
+    (e) => {
+      if (e.target.matches?.('video[data-wetrack-video]'))
+        track('VideoComplete', {
+          content_id: e.target.getAttribute('data-wetrack-video') || 'video',
+        });
     },
     true,
   );

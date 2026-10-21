@@ -7,11 +7,14 @@ import {
   MonitorPlay,
   Plus,
   Wallet,
+  Columns3,
 } from 'lucide-react';
-import { api, brl, decimal, downloadCsv, localDay, mutate, number } from './lib';
+import { api, brl, downloadCsv, localDay, mutate, number } from './lib';
 import { Badge, Empty, Modal, SearchBox, Spinner, Toggle } from './components';
 import type { Dashboard, HierarchyRow, Toast } from './types';
 import MetaEntityEditor from './MetaEntityEditor';
+import ColumnPicker, { type ColumnConfig } from './ColumnPicker';
+import { columns, templates, metric, formatMetric, totalMetric } from './report-columns';
 
 type Level = 'campaigns' | 'adsets' | 'ads';
 const levels = [
@@ -33,6 +36,43 @@ export default function CampaignManager({
   onReload: () => Promise<void>;
 }) {
   const [level, setLevel] = useState<Level>('campaigns');
+  const [columnConfig, setColumnConfig] = useState<ColumnConfig>({
+    selected: templates.Desempenho,
+    presets: [],
+  });
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [sort, setSort] = useState<{ id: string; direction: number } | null>(null);
+  const [columnsReady, setColumnsReady] = useState(false);
+  useEffect(() => {
+    let current = true;
+    setColumnsReady(false);
+    setColumnsOpen(false);
+    setColumnConfig({ selected: templates.Desempenho, presets: [] });
+    api<ColumnConfig | null>(`/report-columns?project=${encodeURIComponent(data.project.id)}`)
+      .then((saved) => {
+        if (!current) return;
+        if (saved) {
+          const valid = new Set(columns.map((c) => c.id));
+          setColumnConfig({
+            selected: saved.selected.filter((id) => valid.has(id)),
+            presets: saved.presets.map((p) => ({
+              ...p,
+              columns: p.columns.filter((id) => valid.has(id)),
+            })),
+          });
+        }
+        setColumnsReady(true);
+      })
+      .catch((e) => {
+        if (current) onExport(e.message, true);
+      });
+    return () => {
+      current = false;
+    };
+  }, [data.project.id]);
+  const visibleColumns = columnConfig.selected
+    .map((id) => columns.find((c) => c.id === id)!)
+    .filter(Boolean);
   const [campaign, setCampaign] = useState<HierarchyRow | null>(null);
   const [adset, setAdset] = useState<HierarchyRow | null>(null);
   const [selected, setSelected] = useState<HierarchyRow | null>(null);
@@ -106,6 +146,12 @@ export default function CampaignManager({
         .includes(query.toLowerCase()) &&
       !(level === 'ads' && !adset && campaign && row.campaign_id !== campaign.id),
   );
+  if (sort)
+    filtered.sort((a, b) => {
+      const x = metric(a, sort.id),
+        y = metric(b, sort.id);
+      return x == null ? (y == null ? 0 : 1) : y == null ? -1 : (x - y) * sort.direction;
+    });
   const title = levels.find((l) => l.id === level)!.label;
   const manualCampaigns = data.campaigns.filter((c) => !('account_id' in c && c.account_id));
   return (
@@ -185,6 +231,14 @@ export default function CampaignManager({
             placeholder={`Buscar em ${title.toLowerCase()}…`}
           />
           <div className="toolbar-actions">
+            <button
+              className="button secondary"
+              disabled={!columnsReady}
+              onClick={() => setColumnsOpen(true)}
+            >
+              <Columns3 size={14} />
+              Colunas
+            </button>
             {level === 'campaigns' && (
               <button
                 className="button secondary"
@@ -214,24 +268,14 @@ export default function CampaignManager({
                     'Campanha',
                     'Conjunto',
                     'ID Meta',
-                    'Investimento',
-                    'Faturamento',
-                    'ROAS',
-                    'Vendas',
-                    'CPA',
-                    'Cliques',
+                    ...visibleColumns.map((c) => c.label),
                   ],
                   ...filtered.map((c) => [
                     c.name,
                     c.campaign_name || c.name,
                     c.adset_name || '',
                     c.external_id || c.id,
-                    c.spend,
-                    c.revenue,
-                    c.roas,
-                    c.sales,
-                    c.cpa,
-                    c.clicks,
+                    ...visibleColumns.map((column) => metric(c, column.id) ?? ''),
                   ]),
                 ]);
                 onExport(`${title} exportados.`);
@@ -261,13 +305,30 @@ export default function CampaignManager({
                 <tr>
                   <th>Status configurado</th>
                   <th>{title}</th>
-                  <th>Orçamento/dia</th>
-                  <th>Investimento</th>
-                  <th>Faturamento</th>
-                  <th>ROAS</th>
-                  <th>Vendas</th>
-                  <th>CPA</th>
-                  <th>Cliques</th>
+                  {visibleColumns.map((c) => (
+                    <th
+                      key={c.id}
+                      aria-sort={
+                        sort?.id === c.id
+                          ? sort.direction === 1
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
+                    >
+                      <button
+                        className="column-sort"
+                        aria-label={`Ordenar por ${c.label}`}
+                        title={c.description}
+                        onClick={() =>
+                          setSort({ id: c.id, direction: sort?.id === c.id ? -sort.direction : -1 })
+                        }
+                      >
+                        {c.label}
+                        {sort?.id === c.id ? (sort.direction === 1 ? ' ↑' : ' ↓') : ''}
+                      </button>
+                    </th>
+                  ))}
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -309,17 +370,24 @@ export default function CampaignManager({
                         <span className="campaign-id">{row.external_id || row.id}</span>
                       </small>
                     </td>
-                    <td>{level === 'ads' || !row.budget ? '—' : brl(row.budget)}</td>
-                    <td>{brl(row.spend)}</td>
-                    <td className="amount-cell">{brl(row.revenue)}</td>
-                    <td>
-                      <span className={`roas-badge ${row.roas >= 2 ? 'positive' : ''}`}>
-                        {decimal(row.roas)}x
-                      </span>
-                    </td>
-                    <td>{number(row.sales)}</td>
-                    <td>{row.sales ? brl(row.cpa) : '—'}</td>
-                    <td>{number(row.clicks)}</td>
+                    {visibleColumns.map((c) => (
+                      <td key={c.id} className={c.id === 'revenue' ? 'amount-cell' : ''}>
+                        {c.id === 'roas' ? (
+                          <span
+                            className={`roas-badge ${(metric(row, c.id) || 0) >= 2 ? 'positive' : ''}`}
+                          >
+                            {formatMetric(metric(row, c.id), c)}
+                          </span>
+                        ) : (
+                          formatMetric(
+                            c.id === 'budget' && (level === 'ads' || !row.budget)
+                              ? null
+                              : metric(row, c.id),
+                            c,
+                          )
+                        )}
+                      </td>
+                    ))}
                     <td>
                       {row.account_id && row.external_id && (
                         <button
@@ -338,10 +406,10 @@ export default function CampaignManager({
                 <tr>
                   <td />
                   <td>Total exibido · {filtered.length}</td>
+                  {visibleColumns.map((c) => (
+                    <td key={c.id}>{formatMetric(totalMetric(filtered, c.id), c)}</td>
+                  ))}
                   <td />
-                  <td>{brl(filtered.reduce((v, c) => v + c.spend, 0))}</td>
-                  <td>{brl(filtered.reduce((v, c) => v + c.revenue, 0))}</td>
-                  <td colSpan={5} />
                 </tr>
               </tfoot>
             </table>
@@ -372,6 +440,22 @@ export default function CampaignManager({
           correspondente no webhook ou nas UTMs. Valores sem esse vínculo permanecem na campanha.
         </p>
       </section>
+      {columnsOpen && (
+        <ColumnPicker
+          config={columnConfig}
+          onClose={() => setColumnsOpen(false)}
+          onSave={async (config) => {
+            await mutate(
+              `/report-columns?project=${encodeURIComponent(data.project.id)}`,
+              'PUT',
+              config,
+            );
+            setColumnConfig(config);
+            setColumnsOpen(false);
+            onExport('Colunas salvas para esta operação.');
+          }}
+        />
+      )}
       {editing && (
         <MetaEntityEditor
           key={`${data.project.id}:${editing.level}:${editing.row.id}`}

@@ -149,6 +149,7 @@ function fixture(t, databaseOptions = {}) {
 }
 
 test('rules use AND, approved attributed sales and an independent Brasília period; undefined ratios never match', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-19T15:00:00Z') });
   const f = fixture(t);
   const row = f.db.prepare('SELECT * FROM campaigns WHERE id=?').get('bad');
   const m = ruleMetrics(f.db, row, 'today', new Date('2026-10-19T15:00:00Z'));

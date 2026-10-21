@@ -22,9 +22,17 @@ import { api, dateTime, mutate, number } from './lib';
 import { Badge, Empty, Modal, SearchBox, Spinner, Toggle } from './components';
 import type { Integrations, Pixel, Toast, PlatformConnectionData } from './types';
 import PlatformConnection from './PlatformConnection';
+import TrackingCenter from './TrackingCenter';
 import { platformGuides, type Provider } from './platform-guides';
 
-const tabs = ['Visão geral', 'Meta Ads', 'Pixel de rastreio', 'UTMs', 'Webhook API'];
+const tabs = [
+  'Visão geral',
+  'Meta Ads',
+  'Pixel de rastreio',
+  'UTMs',
+  'Webhook API',
+  'Rastreamento',
+];
 const metaUtmTemplate =
   'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}';
 const sample = {
@@ -251,6 +259,7 @@ export default function IntegrationsPage({
           </button>
         ))}
       </div>
+      {tab === 'Rastreamento' && <TrackingCenter key={project} project={project} notify={notify} />}
       {tab === 'Visão geral' && (
         <>
           <div className="integration-hero">
