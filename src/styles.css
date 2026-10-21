@@ -834,6 +834,63 @@ kbd {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.metric-fees-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 0;
+  color: var(--muted);
+  font-size: 10px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.metric-fees-button:hover {
+  color: var(--green);
+}
+.fee-field-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.fee-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.fee-preview h3 {
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+.fee-preview dl {
+  margin: 0;
+  font-size: 12px;
+}
+.fee-preview dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.fee-preview dt {
+  color: var(--muted);
+}
+.fee-preview dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.fee-preview-total {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  font-weight: 600;
+}
+.fee-preview-total dd {
+  color: var(--green);
+}
 .metric-profit .metric-value {
   color: #69d6b0;
 }

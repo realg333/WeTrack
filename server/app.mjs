@@ -41,6 +41,7 @@ import {
 } from './tracking.mjs';
 import { normalizeUtmify } from './utmify-format.mjs';
 import { saveSaleCurrency } from './currencies.mjs';
+import { feeSchema, readFees } from './fees.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -239,6 +240,20 @@ export function createApp(db, options = {}) {
   app.get('/api/projects', (_req, res) =>
     res.json(db.prepare('SELECT * FROM projects ORDER BY demo DESC').all()),
   );
+  app.get('/api/fees', (req, res) => {
+    const p = project(req.query.project);
+    res.json(readFees(db, p.id));
+  });
+  app.put('/api/fees', (req, res) => {
+    const { project_id, ...fees } = feeSchema
+      .extend({ project_id: z.string().min(1) })
+      .parse(req.body);
+    const p = project(project_id);
+    db.prepare(
+      'INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+    ).run(`fees:${p.id}`, JSON.stringify(fees));
+    res.json(fees);
+  });
   app.get('/api/dashboard', (req, res) => {
     const p = project(req.query.project),
       r = range(req.query);

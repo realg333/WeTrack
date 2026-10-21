@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { feeAmounts } from './fees.mjs';
 
 export const dateKey = (date = new Date()) =>
   new Intl.DateTimeFormat('en-CA', {
@@ -56,18 +57,21 @@ export const webhookSchema = z.object({
   approved_at: z.string().datetime({ offset: true }).optional(),
   action_source: z.enum(['website', 'system_generated']).optional(),
 });
-export function summarize(sales, spend, visits) {
+export function summarize(sales, spend, visits, fees) {
   const approved = sales.filter((s) => s.status === 'approved');
   const revenue = money(approved.reduce((sum, s) => sum + s.amount, 0));
+  const costs = feeAmounts(revenue, fees);
+  const profit = money(revenue - spend - costs.gateway_fee - costs.tax);
   return {
     revenue,
     spend: money(spend),
-    profit: money(revenue - spend),
+    ...costs,
+    profit,
     sales: approved.length,
     roas: ratio(revenue, spend),
     cpa: ratio(spend, approved.length),
     ticket: ratio(revenue, approved.length),
-    margin: ratio(revenue - spend, revenue) * 100,
+    margin: ratio(profit, revenue) * 100,
     visits,
     conversion: ratio(approved.length, visits) * 100,
     pending: sales.filter((s) => s.status === 'pending').length,

@@ -1,8 +1,9 @@
 import { money, summarize } from './domain.mjs';
 import { resolveCampaign, resolveAd, resolveAdset } from './attribution.mjs';
+import { readFees } from './fees.mjs';
 
 const divide = (a, b, multiplier = 1) => (a != null && b ? (a / b) * multiplier : null);
-export function metricValues(sales, spend, impressions, clicks, events = [], meta = []) {
+export function metricValues(sales, spend, impressions, clicks, events = [], meta = [], fees) {
   const unique = (name) =>
     new Set(events.filter((e) => e.event_name === name).map((e) => e.visitor_id)).size;
   const count = (name) => events.filter((e) => e.event_name === name).length;
@@ -24,7 +25,7 @@ export function metricValues(sales, spend, impressions, clicks, events = [], met
       pages.set(e.page_view_id, page);
     }
   const measured = [...pages.values()];
-  const base = summarize(sales, spend, visits);
+  const base = summarize(sales, spend, visits, fees);
   const pending = sales.filter((s) => s.status === 'pending').length;
   const refunded = sales.filter((s) => s.status === 'refunded').length;
   const chargebacks = sales.filter((s) => s.status === 'chargeback').length;
@@ -134,6 +135,7 @@ export function analyticsData(db, projectId, start, end) {
 }
 
 export function enrichRows(db, projectId, start, end, level, rows, sales) {
+  const fees = readFees(db, projectId);
   const { events, meta } = analyticsData(db, projectId, start, end);
   const key = level === 'campaigns' ? 'campaign_id' : level === 'adsets' ? 'adset_id' : 'ad_id';
   return rows.map((row) => ({
@@ -149,6 +151,7 @@ export function enrichRows(db, projectId, start, end, level, rows, sales) {
           ? m.level === 'campaign' && m.entity_id === row.id
           : m.level === 'ad' && (level === 'ads' ? m.entity_id === row.id : m.adset_id === row.id),
       ),
+      fees,
     ),
   }));
 }

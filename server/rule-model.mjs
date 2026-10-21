@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { dateKey, money } from './domain.mjs';
 import { saleCurrency } from './currencies.mjs';
+import { readFees, feeAmounts } from './fees.mjs';
 
 export const conditionSchema = z
   .object({
@@ -129,11 +130,12 @@ export function ruleMetrics(db, campaign, period, clock) {
       `SELECT COUNT(*) AS sales,COALESCE(SUM(amount),0) AS revenue FROM sales s WHERE campaign_id=? AND project_id=? AND status='approved' AND day BETWEEN ? AND ? AND ${saleCurrency}=?`,
     )
     .get(campaign.id, campaign.project_id, start, end, campaign.currency || 'BRL');
+  const costs = feeAmounts(money(orders.revenue), readFees(db, campaign.project_id));
   return {
     spend: money(spend.spend),
     sales: orders.sales,
     revenue: money(orders.revenue),
-    profit: money(orders.revenue - spend.spend),
+    profit: money(orders.revenue - spend.spend - costs.gateway_fee - costs.tax),
     clicks: spend.clicks,
     impressions: spend.impressions,
     cpa: orders.sales ? spend.spend / orders.sales : null,

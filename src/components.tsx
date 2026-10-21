@@ -8,6 +8,7 @@ import {
   CircleHelp,
   LoaderCircle,
   Search,
+  Settings2,
   X,
 } from 'lucide-react';
 import { brl, decimal, number } from './lib';
@@ -242,7 +243,7 @@ const metricDefinitions: { key: keyof Metrics; title: string; type: string; tip:
     key: 'profit',
     title: 'Lucro sobre mídia',
     type: 'money',
-    tip: 'Faturamento menos investimento. Não inclui taxas, impostos ou custos do produto.',
+    tip: 'Faturamento aprovado menos investimento, taxa do gateway e imposto configurados. Não inclui custos do produto.',
   },
   {
     key: 'roas',
@@ -254,9 +255,11 @@ const metricDefinitions: { key: keyof Metrics; title: string; type: string; tip:
 export function MetricCards({
   metrics,
   currency = 'BRL',
+  onConfigureFees,
 }: {
   metrics: Metrics;
   currency?: string;
+  onConfigureFees?: () => void;
 }) {
   return (
     <div className="metrics-grid">
@@ -319,6 +322,11 @@ export function MetricCards({
               </>
             )}
           </div>
+          {m.key === 'profit' && onConfigureFees && (
+            <button type="button" className="metric-fees-button" onClick={onConfigureFees}>
+              <Settings2 size={12} /> Configurar taxas
+            </button>
+          )}
         </article>
       ))}
     </div>
@@ -334,7 +342,7 @@ export function RevenueChart({
   currency?: string;
 }) {
   const [w, h, pad] = [1000, 224, 25];
-  const values = data.map((d) => (display === 'profit' ? d.revenue - d.spend : d.revenue));
+  const values = data.map((d) => (display === 'profit' ? d.profit : d.revenue));
   const max = Math.max(100, ...values, ...data.map((d) => d.spend)) * 1.15;
   const min = Math.min(0, ...values);
   const range = max - min;

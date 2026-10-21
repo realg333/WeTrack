@@ -62,6 +62,7 @@ import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
 import ConversionFunnel from './ConversionFunnel';
 import SaleAttribution from './SaleAttribution';
+import FeeSettings from './FeeSettings';
 import type { Dashboard, Page, Project, Sale } from './types';
 
 const navigation = [
@@ -143,6 +144,7 @@ export default function App() {
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('wt_theme') || 'dark');
   const [chartDisplay, setChartDisplay] = useState<'revenue' | 'profit'>('revenue');
+  const [feesOpen, setFeesOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [modal, setModal] = useState<'campaign' | 'rule' | 'help' | null>(null);
   const [saving, setSaving] = useState(false);
@@ -258,6 +260,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
   const changeProject = (value: string) => {
+    setFeesOpen(false);
     setSelectedSale(null);
     setProject(value);
     localStorage.setItem('wt_project', value);
@@ -589,7 +592,11 @@ export default function App() {
             <div className="page-content" key={page}>
               {page === 'overview' && (
                 <>
-                  <MetricCards metrics={data.metrics} currency={data.currency} />
+                  <MetricCards
+                    metrics={data.metrics}
+                    currency={data.currency}
+                    onConfigureFees={() => setFeesOpen(true)}
+                  />
                   <div className="secondary-metrics">
                     {[
                       {
@@ -787,7 +794,11 @@ export default function App() {
                     Em itens conectados à Meta, confira a conta e confirme para alterar status, nome
                     ou orçamento. Campanhas manuais são gerenciadas na WeTrack.
                   </div>
-                  <MetricCards metrics={data.metrics} currency={data.currency} />
+                  <MetricCards
+                    metrics={data.metrics}
+                    currency={data.currency}
+                    onConfigureFees={() => setFeesOpen(true)}
+                  />
                   <CampaignManager
                     data={data}
                     onToggle={updateCampaign}
@@ -914,6 +925,22 @@ export default function App() {
             </div>
           </form>
         </Modal>
+      )}
+      {feesOpen && data && (
+        <FeeSettings
+          key={project}
+          project={project}
+          fees={data.fees}
+          currency={data.currency}
+          revenue={data.metrics.revenue}
+          spend={data.metrics.spend}
+          onClose={() => setFeesOpen(false)}
+          onSaved={() => {
+            setFeesOpen(false);
+            notify('Taxas salvas. Lucro atualizado.');
+            void load(true);
+          }}
+        />
       )}
       {modal === 'campaign' && (
         <Modal

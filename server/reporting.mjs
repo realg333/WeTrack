@@ -2,6 +2,7 @@ import { summarize, money, ratio } from './domain.mjs';
 import { ruleReport } from './rule-model.mjs';
 import { enrichRows } from './analytics.mjs';
 import { campaignCurrency, saleCurrency } from './currencies.mjs';
+import { readFees } from './fees.mjs';
 
 export const campaignVisible = `NOT EXISTS (SELECT 1 FROM meta_campaigns mc WHERE mc.campaign_id=c.id) OR EXISTS (SELECT 1 FROM meta_campaigns mc JOIN meta_account_selection sel ON sel.account_id=mc.account_id AND sel.project_id=c.project_id WHERE mc.campaign_id=c.id AND sel.enabled=1)`;
 export function visibleCampaigns(db, projectId, currency) {
@@ -36,6 +37,7 @@ function spendFor(db, campaignId, start, end) {
     .get(campaignId, start, end);
 }
 export function dashboardReport(db, p, start, end, currency = 'BRL') {
+  const fees = readFees(db, p.id);
   const rows = reportSales(db, p.id, start, end, currency);
   const campaignRows = visibleCampaigns(db, p.id, currency);
   const campaigns = campaignRows.map((c) => {
@@ -46,6 +48,7 @@ export function dashboardReport(db, p, start, end, currency = 'BRL') {
         rows.filter((s) => s.campaign_id === c.id),
         spent.amount,
         0,
+        fees,
       ),
       impressions: spent.impressions,
       clicks: spent.clicks,
@@ -58,7 +61,7 @@ export function dashboardReport(db, p, start, end, currency = 'BRL') {
     )
     .get(p.id, start, end).n;
   const metrics = {
-    ...summarize(rows, spend, visits),
+    ...summarize(rows, spend, visits, fees),
     impressions: campaigns.reduce((v, c) => v + c.impressions, 0),
     clicks: campaigns.reduce((v, c) => v + c.clicks, 0),
   };
@@ -75,14 +78,17 @@ export function dashboardReport(db, p, start, end, currency = 'BRL') {
     n++, cursor.setUTCDate(cursor.getUTCDate() + 1)
   ) {
     const day = cursor.toISOString().slice(0, 10);
+    const dayMetrics = summarize(
+      rows.filter((s) => s.day === day),
+      spending.find((s) => s.day === day)?.amount || 0,
+      0,
+      fees,
+    );
     daily.push({
       day,
-      revenue: money(
-        rows
-          .filter((s) => s.day === day && s.status === 'approved')
-          .reduce((v, s) => v + s.amount, 0),
-      ),
-      spend: money(spending.find((s) => s.day === day)?.amount || 0),
+      revenue: dayMetrics.revenue,
+      spend: dayMetrics.spend,
+      profit: dayMetrics.profit,
     });
   }
   const sources = [...new Set(rows.map((s) => s.utm_source))]
@@ -167,6 +173,7 @@ export function dashboardReport(db, p, start, end, currency = 'BRL') {
   };
   return {
     currency,
+    fees,
     metrics,
     daily,
     campaigns,

@@ -9,6 +9,8 @@ export type Page =
   | 'settings';
 export type Project = { id: string; name: string; demo: number };
 export type Metrics = {
+  gateway_fee: number;
+  tax: number;
   revenue: number;
   spend: number;
   profit: number;
@@ -87,8 +89,9 @@ export type Rule = {
 export type RuleCondition = { metric: string; operator: string; threshold: number };
 export type Dashboard = {
   currency: 'BRL' | 'USD';
+  fees: { gateway_percent: number; tax_percent: number };
   metrics: Metrics;
-  daily: { day: string; revenue: number; spend: number }[];
+  daily: { day: string; revenue: number; spend: number; profit: number }[];
   campaigns: Campaign[];
   sales: Sale[];
   sources: { source: string; revenue: number; sales: number }[];
