@@ -63,7 +63,7 @@ async function fixture(page, options = {}) {
         : { json: { confirmed: true } },
     );
   });
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Campanhas', exact: true }).click();
   return { writes, entity, dialog: page.getByRole('dialog') };

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('custom columns reorder, save models, export and persist per operation', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('demo');
   await page.getByRole('button', { name: 'Campanhas', exact: true }).click();
   await page.getByRole('button', { name: 'Colunas', exact: true }).click();
@@ -69,7 +69,7 @@ test('tracking center creates links and manual CRM events, and works on mobile',
   });
   const pixel = await pixelResponse.json();
   expect(pixelResponse.ok()).toBeTruthy();
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
   await page.getByRole('tab', { name: 'Rastreamento', exact: true }).click();

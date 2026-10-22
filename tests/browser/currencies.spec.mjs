@@ -44,7 +44,7 @@ test('currency selector shows separate USD reports, preserves preference and exp
   ).toBe(true);
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   const currency = page.getByRole('combobox', { name: 'Moeda do relatório' });
   await expect(currency).toHaveValue('BRL');

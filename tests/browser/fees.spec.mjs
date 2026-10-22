@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('configure gateway and optional tax, persist after reload and keep operations separate', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('demo');
   await page.getByRole('button', { name: 'Configurar taxas', exact: true }).click();
   const dialog = page.getByRole('dialog');

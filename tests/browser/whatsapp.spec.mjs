@@ -24,7 +24,7 @@ test('WhatsApp CRM stages and checkout links preserve revenue and work on mobile
     customer_name: 'Ana WhatsApp navegador',
   };
   expect((await request.post(`/api/webhooks/${token.token}`, { data: order })).ok()).toBeTruthy();
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'WhatsApp', exact: true }).click();
   await page.getByRole('button', { name: 'Adicionar contato', exact: true }).click();
@@ -112,7 +112,7 @@ test('WhatsApp setup explains coexistence, validates signed test receipts and ga
       },
     })
   ).json();
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'WhatsApp', exact: true }).click();
   await page.getByRole('tab', { name: /Conexões/ }).click();

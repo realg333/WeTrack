@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('dashboard, filters, navigation, details, theme and export', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('demo');
   await expect(page.getByRole('heading', { name: 'Sua operação em foco.' })).toBeVisible();
   await expect(page.locator('.metric-value').first()).not.toHaveText('R$ 0,00');
@@ -69,7 +69,7 @@ test('real workspace: pixel, token, webhook sale, UTM builder and rules', async 
   page,
   request,
 }) => {
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await expect(page.getByRole('button', { name: 'Conectar minha operação' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
@@ -180,7 +180,7 @@ test('installed pixel tracks visits, keeps attribution and propagates UTMs to li
 
 test('mobile menu, dashboard and overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/app');
   await expect(page.locator('.metric-value').first()).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

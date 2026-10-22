@@ -4,7 +4,7 @@ test('Hotmart native setup validates a test, keeps test data out of revenue and 
   page,
   request,
 }) => {
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
   await page.getByRole('tab', { name: 'Webhook API', exact: true }).click();
@@ -95,7 +95,7 @@ test('Cakto and Blackcat expose their own tutorials, credential fields and mobil
 }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
   await page.getByRole('tab', { name: 'Webhook API', exact: true }).click();
   for (const name of ['Cakto', 'Blackcat']) {

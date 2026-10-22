@@ -63,7 +63,7 @@ test('installed head pixel records checkout return, time and scrolling in the vi
     30000,
   );
   await page.clock.resume();
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Visitas e atribuição', exact: true }).click();
   await page.getByRole('textbox', { name: 'Buscar visitante, página ou origem…' }).fill(visitor);

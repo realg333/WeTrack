@@ -34,7 +34,7 @@ test('sales can be assigned through the complete hierarchy and retain original U
       },
     })
   ).json();
-  await page.goto('/#sales');
+  await page.goto('/app#sales');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('demo');
   await page.getByRole('textbox', { name: 'Buscar por produto, cliente ou pedido…' }).fill(orderId);
   await page.getByRole('combobox', { name: 'Filtrar atribuição' }).selectOption('unattributed');
@@ -97,7 +97,7 @@ test('Facebook UTM template is ready to copy and stays available on every visit'
   context,
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('/#integrations');
+  await page.goto('/app#integrations');
   await page.getByRole('tab', { name: 'UTMs', exact: true }).click();
   const template =
     'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}';

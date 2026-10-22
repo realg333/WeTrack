@@ -48,7 +48,7 @@ test('Meta connection uses OAuth from the default tab and overview, with a clipb
       },
     });
   });
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Meta Ads', exact: true })).toHaveAttribute(
@@ -117,7 +117,7 @@ test('closing a pending Meta connection prevents a late link from appearing', as
       },
     });
   });
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('button', { name: 'Integrações', exact: true }).click();
   await page.getByRole('button', { name: 'Conectar com Facebook', exact: true }).click();
   await expect.poll(() => started).toBe(true);

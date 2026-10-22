@@ -4,7 +4,7 @@ Aplicação de rastreamento e análise de campanhas, com interface em português
 
 ## Publicação na Vercel
 
-Painel: **https://wetrack-psi.vercel.app**. Projeto `wetrack` na equipe `Wetrack`, conectado a `realg333/WeTrack` (branch `main`).
+Site: **https://wetrack-psi.vercel.app**. Painel: **https://wetrack-psi.vercel.app/app**. Projeto `wetrack` na equipe `Wetrack`, conectado a `realg333/WeTrack` (branch `main`).
 
 O ambiente publicado contém apenas **Descomplica Libras**. As sessões, visitas e vendas ficam no Turso Starter; arquivos temporários de Functions não são usados como banco. A senha gerada está no arquivo local privado `data/production-access.txt`, ignorado pelo Git e pelo envio à Vercel. A configuração inicial foi enviada criptografada em `WETRACK_BOOTSTRAP`; o marcador no banco impede reaplicar essa cópia sobre dados novos. O banco local e o banco publicado passam a ser independentes.
 
@@ -15,6 +15,10 @@ Compras recebidas por webhook iniciam o envio CAPI com `waitUntil` depois da res
 A URL HTTPS e as variáveis do aplicativo Meta estão configuradas, com retorno `https://wetrack-psi.vercel.app/api/meta/oauth/callback`. O responsável informou conexão bem-sucedida no perfil principal. O acesso por perfis externos ainda depende das aprovações da Meta.
 
 ## Executar
+
+A página inicial pública apresenta a oferta da WeTrack. `/app` e `/login` abrem o painel com a autenticação existente; links antigos como `/#sales` são preservados e atualizados para `/app#sales`.
+
+O plano tem duas formas de cobrança: R$ 29,90/mês ou R$ 238,80/ano (equivalente a R$ 19,90/mês). Para habilitar o botão de assinatura, configure `VITE_CAKTO_MONTHLY_CHECKOUT_URL` e `VITE_CAKTO_ANNUAL_CHECKOUT_URL` com os links públicos das ofertas correspondentes em `https://pay.cakto.com.br/` e faça um novo build/deploy. A página valida HTTPS e o domínio do checkout; ofertas sem URL válida aparecem como “Assinaturas em breve”. Essas variáveis são públicas e nunca devem conter chaves de API. Não há provisionamento automático de contas, controle de assinatura ou webhook de cobrança SaaS; o checkout não concede acesso administrativo.
 
 Requer **Node.js 24 ou superior**. O SQLite usado pelo servidor é nativo do Node.
 

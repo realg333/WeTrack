@@ -17,7 +17,7 @@ test('combined rules support templates, safe simulation, editing, activation and
     new Date(),
   );
   await request.put(`/api/campaigns/${campaign.id}/spend`, { data: { day, amount: 150 } });
-  await page.goto('/#rules');
+  await page.goto('/app#rules');
   await page.getByRole('combobox', { name: 'Selecionar operação' }).selectOption('workspace');
   await page.getByRole('button', { name: 'Nova regra', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -69,7 +69,7 @@ test('combined rules support templates, safe simulation, editing, activation and
 });
 
 test('resume template offers a Brasília schedule and an empty condition list', async ({ page }) => {
-  await page.goto('/#rules');
+  await page.goto('/app#rules');
   await page.getByRole('button', { name: 'Nova regra', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('combobox', { name: 'Modelo', exact: true }).selectOption('resume');
@@ -85,7 +85,7 @@ test('resume template offers a Brasília schedule and an empty condition list', 
 });
 
 test('campaign rules choose an action and combine conditions in one sentence', async ({ page }) => {
-  await page.goto('/#rules');
+  await page.goto('/app#rules');
   await page.getByRole('button', { name: 'Nova regra', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('radio', { name: /Alerta no painel/ })).toBeChecked();

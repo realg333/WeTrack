@@ -1744,6 +1744,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
           </button>
         </form>
         <nav className="login-legal" aria-label="Informações da WeTrack">
+          <a href="/">Voltar ao site</a>
           <a href="/privacy.html">Privacidade</a>
           <a href="/terms.html">Termos</a>
           <a href="/data-deletion.html">Exclusão de dados</a>

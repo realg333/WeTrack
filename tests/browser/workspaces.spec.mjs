@@ -6,7 +6,7 @@ test('create, rename and switch workspaces with clean reports and independent in
 }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/app');
   const selector = page.getByRole('combobox', { name: 'Selecionar operação' });
   await selector.selectOption('demo');
   await expect(page.locator('.metric-value').first()).not.toHaveText('R$ 0,00');
@@ -78,7 +78,7 @@ test('late dashboard responses cannot bring data back from a previous workspace'
 }) => {
   const created = await request.post('/api/projects', { data: { name: `Corrida ${Date.now()}` } });
   const { id } = await created.json();
-  await page.goto('/');
+  await page.goto('/app');
   const selector = page.getByRole('combobox', { name: 'Selecionar operação' });
   await selector.selectOption('demo');
   await expect(page.locator('.metric-value').first()).not.toHaveText('R$ 0,00');
@@ -118,7 +118,7 @@ test('workspace creation fits a mobile viewport and keeps the active operation v
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/app');
   await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
   await page.getByRole('button', { name: 'Novo workspace', exact: true }).click();
   const name = `Mobile ${Date.now()}`;
