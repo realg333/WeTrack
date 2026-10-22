@@ -243,7 +243,7 @@ const metricDefinitions: { key: keyof Metrics; title: string; type: string; tip:
     key: 'profit',
     title: 'Lucro sobre mídia',
     type: 'money',
-    tip: 'Faturamento aprovado menos investimento, taxa do gateway e imposto configurados. Não inclui custos do produto.',
+    tip: 'Faturamento aprovado menos investimento, taxas do gateway, cartão, Pix e imposto configurados. Não inclui custos do produto.',
   },
   {
     key: 'roas',

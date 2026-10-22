@@ -855,6 +855,14 @@ kbd {
   line-height: 1.6;
   font-weight: 400;
 }
+.modal .fee-settings-fields > label {
+  margin-bottom: 0;
+}
+.fee-settings-fields > label > span {
+  display: block;
+  min-height: 2.8em;
+  line-height: 1.4;
+}
 .fee-preview {
   background: var(--bg);
   border: 1px solid var(--border);

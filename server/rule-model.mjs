@@ -127,15 +127,22 @@ export function ruleMetrics(db, campaign, period, clock) {
     .get(campaign.id, start, end);
   const orders = db
     .prepare(
-      `SELECT COUNT(*) AS sales,COALESCE(SUM(amount),0) AS revenue FROM sales s WHERE campaign_id=? AND project_id=? AND status='approved' AND day BETWEEN ? AND ? AND ${saleCurrency}=?`,
+      `SELECT COUNT(*) AS sales,COALESCE(SUM(amount),0) AS revenue,
+        COALESCE(SUM(CASE WHEN payment_method='credit_card' THEN amount ELSE 0 END),0) AS card_revenue,
+        COALESCE(SUM(CASE WHEN payment_method='pix' THEN amount ELSE 0 END),0) AS pix_revenue
+        FROM sales s WHERE campaign_id=? AND project_id=? AND status='approved' AND day BETWEEN ? AND ? AND ${saleCurrency}=?`,
     )
     .get(campaign.id, campaign.project_id, start, end, campaign.currency || 'BRL');
-  const costs = feeAmounts(money(orders.revenue), readFees(db, campaign.project_id));
+  const costs = feeAmounts(money(orders.revenue), readFees(db, campaign.project_id), {
+    sales: orders.sales,
+    card_revenue: money(orders.card_revenue),
+    pix_revenue: money(orders.pix_revenue),
+  });
   return {
     spend: money(spend.spend),
     sales: orders.sales,
     revenue: money(orders.revenue),
-    profit: money(orders.revenue - spend.spend - costs.gateway_fee - costs.tax),
+    profit: money(orders.revenue - spend.spend - costs.total_fees),
     clicks: spend.clicks,
     impressions: spend.impressions,
     cpa: orders.sales ? spend.spend / orders.sales : null,

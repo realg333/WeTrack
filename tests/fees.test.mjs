@@ -4,6 +4,73 @@ import { createDatabase } from '../server/db.mjs';
 import { createApp } from '../server/app.mjs';
 import { dateKey, summarize } from '../server/domain.mjs';
 import { ruleMetrics } from '../server/rule-model.mjs';
+import { feeSchema, readFees } from '../server/fees.mjs';
+
+const zeroFees = {
+  gateway_percent: 0,
+  tax_percent: 0,
+  gateway_fixed: 0,
+  credit_card_percent: 0,
+  pix_percent: 0,
+};
+
+test('fixed fees count approved orders and payment fees apply only to their own method', () => {
+  const sales = [
+    { status: 'approved', amount: 100, payment_method: 'credit_card' },
+    { status: 'approved', amount: 200, payment_method: 'pix' },
+    { status: 'approved', amount: 300, payment_method: 'boleto' },
+    { status: 'approved', amount: 50, payment_method: 'debit_card' },
+    { status: 'approved', amount: 25, payment_method: 'other' },
+    { status: 'pending', amount: 500, payment_method: 'credit_card' },
+    { status: 'refunded', amount: 500, payment_method: 'pix' },
+    { status: 'chargeback', amount: 500, payment_method: 'credit_card' },
+  ];
+  const fees = {
+    gateway_percent: 2,
+    tax_percent: 6,
+    gateway_fixed: 1.5,
+    credit_card_percent: 5,
+    pix_percent: 1,
+  };
+  const result = summarize(sales, 100, 0, fees);
+  assert.equal(result.revenue, 675);
+  assert.equal(result.gateway_fee, 13.5);
+  assert.equal(result.gateway_fixed_fee, 7.5);
+  assert.equal(result.credit_card_fee, 5);
+  assert.equal(result.pix_fee, 2);
+  assert.equal(result.tax, 40.5);
+  assert.equal(result.total_fees, 68.5);
+  assert.equal(result.profit, 506.5);
+  assert.equal(
+    summarize(
+      sales.filter((sale) => sale.status !== 'approved'),
+      10,
+      0,
+      fees,
+    ).total_fees,
+    0,
+  );
+  assert.equal(summarize(sales, 100, 0, zeroFees).profit, 575);
+});
+
+test('existing fee configurations retain percentages and default new optional fees to zero', () => {
+  const db = createDatabase(':memory:');
+  try {
+    db.prepare('INSERT INTO settings VALUES(?,?)').run(
+      'fees:workspace',
+      JSON.stringify({ gateway_percent: 4.99, tax_percent: 6 }),
+    );
+    assert.deepEqual(readFees(db, 'workspace'), {
+      ...zeroFees,
+      gateway_percent: 4.99,
+      tax_percent: 6,
+    });
+    assert.deepEqual(readFees(db, 'demo'), zeroFees);
+    assert.equal(feeSchema.safeParse({ ...zeroFees, gateway_fixed: Infinity }).success, false);
+  } finally {
+    db.close();
+  }
+});
 
 test('fees apply only to approved revenue and preserve negative profit and gross ROAS', () => {
   const sales = [
@@ -42,15 +109,23 @@ test('fee settings persist per operation and feed dashboard, hierarchy, daily se
     return { status: response.status, body: await response.json() };
   };
   try {
-    const fees = { gateway_percent: 4.99, tax_percent: 6 };
-    assert.deepEqual((await request('/fees?project=demo')).body, {
-      gateway_percent: 0,
-      tax_percent: 0,
-    });
+    const fees = {
+      gateway_percent: 4.99,
+      tax_percent: 6,
+      gateway_fixed: 1.49,
+      credit_card_percent: 3.99,
+      pix_percent: 0.99,
+    };
+    assert.deepEqual((await request('/fees?project=demo')).body, zeroFees);
     for (const values of [
       { gateway_percent: -1 },
       { tax_percent: 101 },
       { tax_percent: '6' },
+      { gateway_fixed: -1 },
+      { gateway_fixed: 0.001 },
+      { gateway_fixed: 1000001 },
+      { credit_card_percent: 101 },
+      { pix_percent: -1 },
       { unexpected: 1 },
     ])
       assert.equal(
@@ -63,10 +138,7 @@ test('fee settings persist per operation and feed dashboard, hierarchy, daily se
     const before = (await request(`/dashboard?${range}`)).body;
     assert.equal((await request('/fees', { project_id: 'demo', ...fees })).status, 200);
     assert.deepEqual((await request('/fees?project=demo')).body, fees);
-    assert.deepEqual((await request('/fees?project=workspace')).body, {
-      gateway_percent: 0,
-      tax_percent: 0,
-    });
+    assert.deepEqual((await request('/fees?project=workspace')).body, zeroFees);
     assert.deepEqual(
       JSON.parse(db.prepare('SELECT value FROM settings WHERE key=?').get('fees:demo').value),
       fees,

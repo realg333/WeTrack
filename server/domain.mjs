@@ -60,8 +60,20 @@ export const webhookSchema = z.object({
 export function summarize(sales, spend, visits, fees) {
   const approved = sales.filter((s) => s.status === 'approved');
   const revenue = money(approved.reduce((sum, s) => sum + s.amount, 0));
-  const costs = feeAmounts(revenue, fees);
-  const profit = money(revenue - spend - costs.gateway_fee - costs.tax);
+  const costs = feeAmounts(revenue, fees, {
+    sales: approved.length,
+    card_revenue: money(
+      approved
+        .filter((sale) => sale.payment_method === 'credit_card')
+        .reduce((sum, sale) => sum + sale.amount, 0),
+    ),
+    pix_revenue: money(
+      approved
+        .filter((sale) => sale.payment_method === 'pix')
+        .reduce((sum, sale) => sum + sale.amount, 0),
+    ),
+  });
+  const profit = money(revenue - spend - costs.total_fees);
   return {
     revenue,
     spend: money(spend),

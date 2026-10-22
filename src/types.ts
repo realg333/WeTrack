@@ -11,6 +11,10 @@ export type Page =
 export type Project = { id: string; name: string; demo: number };
 export type Metrics = {
   gateway_fee: number;
+  gateway_fixed_fee: number;
+  credit_card_fee: number;
+  pix_fee: number;
+  total_fees: number;
   tax: number;
   revenue: number;
   spend: number;
@@ -90,7 +94,13 @@ export type Rule = {
 export type RuleCondition = { metric: string; operator: string; threshold: number };
 export type Dashboard = {
   currency: 'BRL' | 'USD';
-  fees: { gateway_percent: number; tax_percent: number };
+  fees: {
+    gateway_percent: number;
+    tax_percent: number;
+    gateway_fixed: number;
+    credit_card_percent: number;
+    pix_percent: number;
+  };
   metrics: Metrics;
   daily: { day: string; revenue: number; spend: number; profit: number }[];
   campaigns: Campaign[];

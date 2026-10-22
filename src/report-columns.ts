@@ -30,7 +30,7 @@ export const columns: Column[] = [
       'profit',
       'Lucro sobre mídia',
       'money',
-      'Faturamento aprovado menos investimento, taxa do gateway e imposto configurados. Não inclui custos do produto.',
+      'Faturamento aprovado menos investimento, taxas do gateway, cartão, Pix e imposto configurados. Não inclui custos do produto.',
     ],
     ['roas', 'ROAS', 'ratio', 'Faturamento aprovado ÷ investimento.'],
     ['roi', 'ROI sobre mídia', 'percent', 'Lucro sobre mídia ÷ investimento × 100.'],

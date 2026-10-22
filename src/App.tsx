@@ -937,6 +937,7 @@ export default function App() {
           key={project}
           project={project}
           fees={data.fees}
+          sales={data.sales}
           currency={data.currency}
           revenue={data.metrics.revenue}
           spend={data.metrics.spend}

@@ -9,6 +9,9 @@ test('configure gateway and optional tax, persist after reload and keep operatio
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Taxa do gateway (%)', { exact: true }).fill('4.99');
+  await dialog.getByLabel('Taxa fixa do gateway (R$) · opcional', { exact: true }).fill('1.49');
+  await dialog.getByLabel('Taxa de cartão de crédito (%) · opcional', { exact: true }).fill('3.99');
+  await dialog.getByLabel('Taxa de Pix (%) · opcional', { exact: true }).fill('0.99');
   await dialog.getByLabel('Imposto (%) · opcional', { exact: true }).fill('6');
   await expect(dialog.getByText('Lucro estimado', { exact: true })).toBeVisible();
   const expectedProfit = await dialog.locator('.fee-preview-total dd').innerText();
@@ -35,6 +38,15 @@ test('configure gateway and optional tax, persist after reload and keep operatio
   await page.getByRole('button', { name: 'Configurar taxas', exact: true }).click();
   await expect(dialog.getByLabel('Taxa do gateway (%)', { exact: true })).toHaveValue('4.99');
   await expect(dialog.getByLabel('Imposto (%) · opcional', { exact: true })).toHaveValue('6');
+  await expect(
+    dialog.getByLabel('Taxa fixa do gateway (R$) · opcional', { exact: true }),
+  ).toHaveValue('1.49');
+  await expect(
+    dialog.getByLabel('Taxa de cartão de crédito (%) · opcional', { exact: true }),
+  ).toHaveValue('3.99');
+  await expect(dialog.getByLabel('Taxa de Pix (%) · opcional', { exact: true })).toHaveValue(
+    '0.99',
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(dialog.getByRole('button', { name: 'Salvar taxas', exact: true })).toBeVisible();
   await expect(dialog).toHaveJSProperty(
@@ -53,4 +65,11 @@ test('configure gateway and optional tax, persist after reload and keep operatio
   await page.getByRole('button', { name: 'Configurar taxas', exact: true }).click();
   await expect(dialog.getByLabel('Taxa do gateway (%)', { exact: true })).toHaveValue('0');
   await expect(dialog.getByLabel('Imposto (%) · opcional', { exact: true })).toHaveValue('0');
+  await expect(
+    dialog.getByLabel('Taxa fixa do gateway (R$) · opcional', { exact: true }),
+  ).toHaveValue('0');
+  await expect(
+    dialog.getByLabel('Taxa de cartão de crédito (%) · opcional', { exact: true }),
+  ).toHaveValue('0');
+  await expect(dialog.getByLabel('Taxa de Pix (%) · opcional', { exact: true })).toHaveValue('0');
 });
