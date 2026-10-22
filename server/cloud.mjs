@@ -19,6 +19,7 @@ export const cloudTables = [
   'rule_campaign_state',
   'settings',
   'meta_connections',
+  'meta_account_selection',
   'meta_campaigns',
   'campaign_currencies',
   'sale_currencies',

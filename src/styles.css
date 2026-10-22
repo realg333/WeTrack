@@ -184,6 +184,11 @@ small {
   display: flex;
   flex-direction: column;
   padding: 0 15px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .sidebar-brand {
   height: 86px;
@@ -292,6 +297,120 @@ small {
 }
 .workspace-select:focus-within {
   outline: 2px solid var(--blue);
+}
+.workspace-select {
+  margin-bottom: 8px;
+}
+.workspace-select strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workspace-avatar {
+  flex-shrink: 0;
+}
+.workspace-create {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 6px 10px;
+  margin-bottom: 20px;
+  font-size: 11px;
+}
+.workspace-breadcrumb {
+  max-width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.workspace-isolation {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  border-radius: 8px;
+}
+.workspace-isolation > svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+.workspace-isolation strong {
+  font-size: 13px;
+}
+.workspace-isolation p,
+.workspace-hint,
+.workspace-reuse small {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+label.workspace-reuse {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+.workspace-reuse input {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  accent-color: var(--blue);
+  flex-shrink: 0;
+}
+.workspace-reuse small {
+  display: block;
+}
+.workspace-directory {
+  max-height: 360px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.workspace-directory-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.workspace-directory-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.workspace-directory-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.workspace-directory-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.workspace-welcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border-left: 3px solid var(--blue);
+}
+.workspace-welcome > div {
+  flex: 1 1 260px;
+}
+.workspace-welcome h2 {
+  margin: 8px 0;
+  font-size: 20px;
+}
+.workspace-welcome p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 650px;
+  margin: 0;
 }
 .nav-caption {
   color: var(--muted-dim);

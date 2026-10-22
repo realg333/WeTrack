@@ -253,6 +253,63 @@ export function createApp(db, options = {}) {
   app.get('/api/projects', (_req, res) =>
     res.json(db.prepare('SELECT * FROM projects ORDER BY demo DESC').all()),
   );
+  const projectName = z.string().trim().min(2).max(80);
+  const ensureUniqueProjectName = (name, except = '') => {
+    const normalized = name.toLocaleLowerCase('pt-BR');
+    if (
+      db
+        .prepare('SELECT id,name FROM projects')
+        .all()
+        .some((p) => p.id !== except && p.name.trim().toLocaleLowerCase('pt-BR') === normalized)
+    )
+      throw Object.assign(new Error('Já existe um workspace com esse nome.'), { status: 409 });
+  };
+  app.post('/api/projects', (req, res) => {
+    const input = z
+      .object({
+        name: projectName,
+        reuse_meta_from: z.string().min(1).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    const source = input.reuse_meta_from ? project(input.reuse_meta_from) : null;
+    if (source?.demo)
+      return res.status(400).json({ error: 'Use uma operação real como origem da conexão.' });
+    const created = { id: id('ws'), name: input.name, demo: 0 };
+    db.exec('BEGIN');
+    try {
+      ensureUniqueProjectName(input.name);
+      db.prepare('INSERT INTO projects(id,name,demo) VALUES(?,?,0)').run(created.id, created.name);
+      // Reuse authorization only. Never copy metrics, pixels, webhooks or account selections.
+      if (source) {
+        db.prepare(
+          `INSERT INTO meta_connections(project_id,token_cipher,accounts,connected_at,last_sync)
+          SELECT ?,token_cipher,accounts,connected_at,NULL FROM meta_connections WHERE project_id=?`,
+        ).run(created.id, source.id);
+      }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    res.status(201).json(created);
+  });
+  app.patch('/api/projects/:id', (req, res) => {
+    const p = project(req.params.id);
+    const { name } = z.object({ name: projectName }).strict().parse(req.body);
+    if (p.demo)
+      return res.status(400).json({ error: 'O workspace de demonstração não pode ser renomeado.' });
+    db.exec('BEGIN');
+    try {
+      ensureUniqueProjectName(name, p.id);
+      db.prepare('UPDATE projects SET name=? WHERE id=?').run(name, p.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    res.json({ ...p, name });
+  });
   app.get('/api/fees', (req, res) => {
     const p = project(req.query.project);
     res.json(readFees(db, p.id));
@@ -798,16 +855,21 @@ export function createApp(db, options = {}) {
       return res.status(404).json({ error: 'Regra não encontrada nesta operação.' });
     res.json({ ok: true });
   });
-  app.get('/api/settings', (_req, res) =>
-    res.json(
-      Object.fromEntries(
-        db
-          .prepare('SELECT * FROM settings')
-          .all()
-          .map((s) => [s.key, JSON.parse(s.value)]),
-      ),
-    ),
-  );
+  app.get('/api/settings', (req, res) => {
+    const p = req.query.project ? project(req.query.project) : null;
+    const keys = ['name', 'email', 'sale_alerts', 'rule_alerts'];
+    const values = {};
+    for (const key of keys) {
+      const scoped =
+        p && db.prepare('SELECT value FROM settings WHERE key=?').get(`preferences:${p.id}:${key}`);
+      const legacy =
+        (!p || p.id === 'workspace') &&
+        db.prepare('SELECT value FROM settings WHERE key=?').get(key);
+      const row = scoped || legacy;
+      if (row) values[key] = JSON.parse(row.value);
+    }
+    res.json(values);
+  });
   app.put('/api/settings', (req, res) => {
     const data = z
       .object({
@@ -815,12 +877,16 @@ export function createApp(db, options = {}) {
         email: z.string().email(),
         sale_alerts: z.boolean(),
         rule_alerts: z.boolean(),
+        project_id: z.string().min(1).optional(),
       })
       .parse(req.body);
+    const p = data.project_id ? project(data.project_id) : null;
     const stmt = db.prepare(
       'INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
     );
-    Object.entries(data).forEach(([k, v]) => stmt.run(k, JSON.stringify(v)));
+    Object.entries(data)
+      .filter(([k]) => k !== 'project_id')
+      .forEach(([k, v]) => stmt.run(p ? `preferences:${p.id}:${k}` : k, JSON.stringify(v)));
     res.json({ ok: true });
   });
   const receiveSale = (req, res) => {

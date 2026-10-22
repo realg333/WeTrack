@@ -58,6 +58,7 @@ import {
   Toggle,
 } from './components';
 import IntegrationsPage from './Integrations';
+import WorkspacesDialog from './WorkspacesDialog';
 import RulesPage from './RulesPage';
 import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
@@ -129,6 +130,7 @@ const paymentName: Record<string, string> = {
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
   const [project, setProject] = useState(() => localStorage.getItem('wt_project') || 'workspace');
+  const [workspaceDialog, setWorkspaceDialog] = useState<'create' | 'manage' | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [period, setPeriod] = useState('7');
   const [currency, setCurrency] = useState<'BRL' | 'USD'>(() =>
@@ -155,6 +157,8 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
   const generation = useRef(0);
+  const activeProject = useRef(project);
+  activeProject.current = project;
   const previousPage = useRef(page);
   useEffect(() => {
     const expired = () => setAuthenticated(false);
@@ -215,6 +219,7 @@ export default function App() {
   }, [authenticated, notify]);
   const load = useCallback(
     async (quiet = false) => {
+      if (activeProject.current !== project) return;
       const version = ++generation.current;
       if (!quiet) setLoading(true);
       const endDate = new Date(`${localDay()}T12:00:00Z`);
@@ -228,7 +233,7 @@ export default function App() {
         const result = await api<Dashboard>(
           `/dashboard?${new URLSearchParams({ project, start, end, currency })}`,
         );
-        if (version !== generation.current) return;
+        if (version !== generation.current || activeProject.current !== project) return;
         setData(result);
         setError('');
         setLastUpdated(
@@ -265,6 +270,27 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
   const changeProject = (value: string) => {
+    if (value === '__create__') {
+      setWorkspaceDialog('create');
+      return;
+    }
+    if (value === '__manage__') {
+      setWorkspaceDialog('manage');
+      return;
+    }
+    if (value === project) return;
+    activeProject.current = value;
+    generation.current++;
+    setData(null);
+    setLoading(true);
+    setError('');
+    setLastUpdated('');
+    setModal(null);
+    setSearchOpen(false);
+    setCommand('');
+    setNotificationsOpen(false);
+    setNotificationsRead(false);
+    setMobileOpen(false);
     setFeesOpen(false);
     setSelectedSale(null);
     setProject(value);
@@ -334,10 +360,12 @@ export default function App() {
           </button>
         </div>
         <div className="workspace-select">
-          <span className="workspace-avatar">W</span>
+          <span className="workspace-avatar">
+            {currentProject?.name.slice(0, 1).toLocaleUpperCase('pt-BR') || 'W'}
+          </span>
           <div>
             <small>SEU WORKSPACE</small>
-            <strong>WeTrack Workspace</strong>
+            <strong title={currentProject?.name}>{currentProject?.name || 'Carregando…'}</strong>
           </div>
           <ChevronDown size={14} />
           <select
@@ -351,8 +379,17 @@ export default function App() {
                 {p.demo ? ' (demonstração)' : ''}
               </option>
             ))}
+            <option value="__create__">＋ Criar workspace</option>
+            <option value="__manage__">Gerenciar workspaces</option>
           </select>
         </div>
+        <button
+          className="workspace-create text-button"
+          onClick={() => setWorkspaceDialog('create')}
+        >
+          <Plus size={14} />
+          Novo workspace
+        </button>
         <div className="nav-caption">ANÁLISE E GESTÃO</div>
         <nav aria-label="Navegação principal">
           {navigation.map((item) => (
@@ -425,7 +462,9 @@ export default function App() {
             >
               <Menu size={20} />
             </button>
-            <span>Workspace</span>
+            <span className="workspace-breadcrumb" title={currentProject?.name}>
+              {currentProject?.name || 'Workspace'}
+            </span>
             <ChevronRight size={13} />
             <strong>{titles[page]}</strong>
           </div>
@@ -510,7 +549,7 @@ export default function App() {
               </span>
               <button
                 onClick={() => {
-                  changeProject('workspace');
+                  changeProject(projects.find((p) => !p.demo)?.id || 'workspace');
                   navigate('integrations');
                 }}
               >
@@ -594,7 +633,27 @@ export default function App() {
             </div>
           )}
           {data && (
-            <div className="page-content" key={page}>
+            <div className="page-content" key={`${project}:${page}`}>
+              {page === 'overview' &&
+                !currentProject?.demo &&
+                !data.campaigns.length &&
+                !data.sales.length &&
+                !data.metrics.visits && (
+                  <section className="workspace-welcome panel">
+                    <div>
+                      <span className="eyebrow">{currentProject?.name}</span>
+                      <h2>Seu workspace está pronto.</h2>
+                      <p>
+                        Conecte as contas, crie um pixel e configure os webhooks desta operação. Os
+                        dados aparecerão aqui conforme chegarem.
+                      </p>
+                    </div>
+                    <button className="button primary" onClick={() => navigate('integrations')}>
+                      Configurar integrações
+                      <ArrowRight size={15} />
+                    </button>
+                  </section>
+                )}
               {page === 'overview' && (
                 <>
                   <MetricCards
@@ -840,6 +899,8 @@ export default function App() {
               )}
               {page === 'settings' && (
                 <SettingsPage
+                  project={project}
+                  onManageWorkspaces={() => setWorkspaceDialog('manage')}
                   notify={notify}
                   localMode={localMode}
                   onLogout={() => setAuthenticated(false)}
@@ -865,6 +926,25 @@ export default function App() {
           </footer>
         </main>
       </div>
+      {workspaceDialog && (
+        <WorkspacesDialog
+          mode={workspaceDialog}
+          projects={projects}
+          current={project}
+          notify={notify}
+          onClose={() => setWorkspaceDialog(null)}
+          onSelect={changeProject}
+          onSaved={(saved, created) => {
+            setProjects((old) =>
+              created ? [...old, saved] : old.map((p) => (p.id === saved.id ? saved : p)),
+            );
+            if (created) {
+              changeProject(saved.id);
+              navigate('overview');
+            }
+          }}
+        />
+      )}
       {toast && (
         <div className={`toast ${toast.error ? 'toast-error' : ''}`} role="status">
           <span>{toast.error ? <X size={17} /> : <Check size={17} />}</span>
@@ -1484,33 +1564,37 @@ function NotificationList({ data, onSelect }: { data: Dashboard; onSelect: (s: S
   );
 }
 function SettingsPage({
+  project,
+  onManageWorkspaces,
   notify,
   localMode,
   onLogout,
 }: {
+  project: string;
+  onManageWorkspaces: () => void;
   notify: (s: string, error?: boolean) => void;
   localMode: boolean;
   onLogout: () => void;
 }) {
   const [settings, setSettings] = useState({
     name: 'Minha conta',
-    email: 'operacao@exemplo.com',
+    email: '',
     sale_alerts: true,
     rule_alerts: true,
   });
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    api<Partial<typeof settings>>('/settings')
+    api<Partial<typeof settings>>(`/settings?project=${encodeURIComponent(project)}`)
       .then((s) => setSettings((old) => ({ ...old, ...s })))
       .catch((e) => notify(e.message, true));
-  }, [notify]);
+  }, [notify, project]);
   return (
     <div className="settings-layout">
       <section className="panel settings-panel">
         <div className="panel-heading">
           <div>
-            <h2>Perfil do workspace</h2>
-            <p>As informações da sua operação</p>
+            <h2>Preferências do workspace</h2>
+            <p>Informações e alertas exclusivos desta operação</p>
           </div>
           <Settings2 size={19} className="muted" />
         </div>
@@ -1519,7 +1603,7 @@ function SettingsPage({
             e.preventDefault();
             setSaving(true);
             try {
-              await mutate('/settings', 'PUT', settings);
+              await mutate('/settings', 'PUT', { ...settings, project_id: project });
               notify('Preferências salvas.');
             } catch (e) {
               notify((e as Error).message, true);
@@ -1577,6 +1661,10 @@ function SettingsPage({
         </form>
       </section>
       <section className="panel environment-panel">
+        <button className="button secondary full-width" onClick={onManageWorkspaces}>
+          <Settings2 size={15} />
+          Gerenciar workspaces
+        </button>
         <ShieldCheck size={28} />
         <h2>Seu ambiente</h2>
         <dl className="detail-list">
