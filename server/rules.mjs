@@ -17,6 +17,45 @@ const reais = (value, currency = 'BRL') =>
   value.toLocaleString('pt-BR', { style: 'currency', currency });
 const budgetAction = (action) => action === 'increase_budget' || action === 'decrease_budget';
 export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
+  const schedulerKey = 'campaign-rules-scheduler-v1';
+  function schedulerRecord() {
+    const value = db.prepare('SELECT value FROM settings WHERE key=?').get(schedulerKey)?.value;
+    return value ? JSON.parse(value) : {};
+  }
+  function writeScheduler(value) {
+    db.prepare(
+      'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+    ).run(schedulerKey, JSON.stringify(value));
+  }
+  function schedulerStatus(projectId) {
+    const record = schedulerRecord(),
+      age = clock().getTime() - Date.parse(record.last_started_at || ''),
+      running = record.in_progress === true;
+    const activeRules = db
+      .prepare(
+        'SELECT COUNT(*) AS n FROM rules r JOIN projects p ON p.id=r.project_id WHERE p.demo=0 AND r.active=1 AND (? IS NULL OR r.project_id=?)',
+      )
+      .get(projectId || null, projectId || null).n;
+    return {
+      state: !record.last_started_at
+        ? 'never'
+        : age > 15 * 60000
+          ? 'stale'
+          : running
+            ? 'running'
+            : record.last_error
+              ? 'error'
+              : 'healthy',
+      interval_minutes: 5,
+      stale_after_minutes: 15,
+      active_rules: Number(activeRules),
+      last_started_at: record.last_started_at || null,
+      last_finished_at: record.last_finished_at || null,
+      last_success_at: record.last_success_at || null,
+      last_error: record.last_error || null,
+      source: record.source || null,
+    };
+  }
   function parse(input) {
     // Preserve the original alert API for existing clients.
     if (input.metric !== undefined && input.conditions === undefined) {
@@ -448,10 +487,50 @@ export function createRuleService(db, meta, { clock = () => new Date() } = {}) {
     const deadline = Date.now() + 210000,
       results = [];
     for (const p of db.prepare('SELECT id FROM projects WHERE demo=0').all()) {
-      if (Date.now() > deadline) break;
+      if (Date.now() > deadline) {
+        results.push({
+          project_id: p.id,
+          failures: 1,
+          error: 'Tempo da execução atingido antes de verificar esta operação.',
+        });
+        continue;
+      }
       results.push({ project_id: p.id, ...(await run(p.id, { deadline })) });
     }
     return results;
   }
-  return { parse, save, preview, history, run, runAll };
+  async function runScheduled({ source = 'external' } = {}) {
+    if (!['github-actions', 'external', 'standalone'].includes(source))
+      throw fail('Origem do agendador inválida.');
+    const runId = randomUUID();
+    writeScheduler({
+      ...schedulerRecord(),
+      run_id: runId,
+      source,
+      last_started_at: clock().toISOString(),
+      in_progress: true,
+    });
+    let error = null;
+    try {
+      const results = await runAll(),
+        ok = !results.some((r) => r.failures);
+      if (!ok) error = 'Uma ou mais operações falharam. Consulte o histórico das regras.';
+      return { ok, results };
+    } catch (e) {
+      error = 'Não foi possível concluir a verificação. Confira o banco e a conexão Meta.';
+      throw e;
+    } finally {
+      const latest = schedulerRecord();
+      // A concurrent HTTP/standalone trigger may have started a newer cycle.
+      if (latest.run_id === runId)
+        writeScheduler({
+          ...latest,
+          in_progress: false,
+          last_finished_at: clock().toISOString(),
+          last_success_at: error ? latest.last_success_at || null : clock().toISOString(),
+          last_error: error,
+        });
+    }
+  }
+  return { parse, save, preview, history, run, runAll, runScheduled, schedulerStatus };
 }

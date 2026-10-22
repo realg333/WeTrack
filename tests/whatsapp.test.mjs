@@ -121,6 +121,7 @@ async function fixture(t, options = {}) {
       ).status,
       200,
     );
+    assert.equal((await deliver(envelope([message('wamid.activation-test')]))).data.accepted, 1);
     assert.equal(
       (
         await req(
@@ -409,6 +410,81 @@ test('session inactivity creates a second conversation, outbound echoes never st
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM wa_sale_links').get().n, 0);
 });
 
+test('a new CTWA click on the same ad starts a new conversation while repeated referrals and organic replies stay in it', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  for (const [id, ago, click] of [
+    ['first', 120, 'click-first'],
+    ['second', 90, 'click-second'],
+    ['repeat', 60, 'click-second'],
+    ['reply', 30, null],
+  ]) {
+    const result = await f.deliver(
+      f.envelope([
+        f.message('wamid.click.' + id, {
+          timestamp: String(Math.floor(Date.now() / 1000) - ago),
+          ...(click
+            ? { referral: { source_type: 'ad', source_id: '3333333', ctwa_clid: click } }
+            : {}),
+        }),
+      ]),
+    );
+    assert.equal(result.data.accepted, 1);
+  }
+  const conversations = f.db.prepare('SELECT * FROM wa_conversations ORDER BY started_at').all();
+  assert.equal(conversations.length, 2);
+  assert.equal(conversations[0].ctwa_clid, 'click-first');
+  assert.equal(conversations[1].ctwa_clid, 'click-second');
+  assert.equal(
+    f.db
+      .prepare('SELECT COUNT(*) AS n FROM wa_messages WHERE conversation_id=?')
+      .get(conversations[1].id).n,
+    3,
+  );
+  assert.equal(
+    f.db.prepare("SELECT COUNT(*) AS n FROM events WHERE event_name='ConversationStarted'").get().n,
+    2,
+  );
+});
+
+test('a new smart-link campaign from the same visitor starts a separate conversation and keeps its attribution', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  for (const [suffix, campaign, ago] of [
+    ['1234567890abcdef', 'campaign-first', 90],
+    ['abcdef1234567890', 'campaign-second', 60],
+    ['abcdef1234567890', 'campaign-second', 30],
+  ]) {
+    const code = 'wt' + suffix;
+    f.db.prepare('INSERT OR REPLACE INTO checkout_refs VALUES(?,?,?,?)').run(
+      'work',
+      code,
+      JSON.stringify({
+        visitor_id: 'returning-site-visitor',
+        utm_source: 'facebook',
+        utm_campaign: campaign,
+      }),
+      Date.now() + 86400000,
+    );
+    await f.deliver(
+      f.envelope([
+        f.message('wamid.campaign.' + ago, {
+          timestamp: String(Math.floor(Date.now() / 1000) - ago),
+          text: { body: `Olá [${code}]` },
+        }),
+      ]),
+    );
+  }
+  const conversations = f.db.prepare('SELECT * FROM wa_conversations ORDER BY started_at').all();
+  assert.equal(conversations.length, 2);
+  assert.deepEqual(
+    conversations.map((v) => v.utm_campaign),
+    ['campaign-first', 'campaign-second'],
+  );
+  assert.ok(conversations.every((v) => v.visitor_id === 'returning-site-visitor'));
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM wa_contacts').get().n, 1);
+});
+
 test('manual contacts and order links cannot fabricate conversations or payment, and removed links stay excluded', async (t) => {
   const f = await fixture(t, { Driver: Database });
   const contact = (
@@ -467,6 +543,10 @@ test('validating a mismatched account fails and rotating credentials returns col
   assert.equal(row.api_checked_at, null);
   assert.equal(row.subscribed_at, null);
   assert.ok(row.verified_at);
+  assert.equal(
+    (await f.req(`/whatsapp/connections/${f.conn.id}/setup?project=work`)).data.test_received,
+    false,
+  );
   const g = await fixture(t, {
     transport: async () => ({
       ok: true,
@@ -482,6 +562,40 @@ test('validating a mismatched account fails and rotating credentials returns col
     g.db.prepare('SELECT api_checked_at FROM wa_connections').get().api_checked_at,
     null,
   );
+});
+
+test('real collection requires a fresh inbound test delivery; echoes and earlier credential tests do not activate it', async (t) => {
+  const f = await fixture(t);
+  const path = `/whatsapp/connections/${f.conn.id}`;
+  await f.req(path + '/check', { project_id: 'work' });
+  await f.req(path + '/subscribe', { project_id: 'work' });
+  await f.req(
+    `/whatsapp/webhook/${f.conn.id}?${new URLSearchParams({ 'hub.mode': 'subscribe', 'hub.verify_token': f.setup.verify_token, 'hub.challenge': 'challenge-test' })}`,
+  );
+  assert.equal((await f.req(path, { project_id: 'work', test_mode: false }, 'PATCH')).status, 400);
+  const echo = f.envelope(undefined, {
+    message_echoes: [
+      {
+        id: 'wamid.test-echo',
+        to: '5511888888888',
+        timestamp: String(Math.floor(Date.now() / 1000)),
+        type: 'text',
+        text: { body: 'Resposta em teste' },
+      },
+    ],
+  });
+  echo.entry[0].changes[0].field = 'smb_message_echoes';
+  assert.equal((await f.deliver(echo)).data.accepted, 1);
+  assert.equal((await f.req(path + '/setup?project=work')).data.test_received, false);
+  assert.equal((await f.req(path, { project_id: 'work', test_mode: false }, 'PATCH')).status, 400);
+  await f.deliver(f.envelope([f.message('wamid.inbound-test')]));
+  assert.equal((await f.req(path + '/setup?project=work')).data.test_received, true);
+  await f.req(path + '/subscribe', { project_id: 'work' });
+  assert.equal((await f.req(path + '/setup?project=work')).data.test_received, false);
+  assert.equal((await f.req(path, { project_id: 'work', test_mode: false }, 'PATCH')).status, 400);
+  await f.deliver(f.envelope([f.message('wamid.inbound-retest')]));
+  assert.equal((await f.req(path, { project_id: 'work', test_mode: false }, 'PATCH')).status, 200);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM wa_contacts').get().n, 0);
 });
 
 test('delivery setup requires verified account access, configures only this phone and never claims a rejected subscription', async (t) => {

@@ -7,6 +7,11 @@ import { dateKey } from './domain.mjs';
 import { phoneHash, reconcileWhatsAppSales } from './whatsapp-sales.mjs';
 import { whatsAppReport, contactDetails } from './whatsapp-reporting.mjs';
 import { saleCurrency } from './currencies.mjs';
+import {
+  registerWhatsAppOnboarding,
+  whatsAppOnboardingConfiguration,
+  whatsAppOnboardingDetails,
+} from './whatsapp-onboarding.mjs';
 
 const hash = (v) => createHash('sha256').update(v).digest('hex');
 const uid = (prefix) => prefix + randomUUID().replaceAll('-', '');
@@ -43,6 +48,19 @@ const supported = new Set([
   'interactive',
   'order',
 ]);
+const webhookSchema = z.object({
+  object: z.literal('whatsapp_business_account'),
+  entry: z
+    .array(
+      z.object({
+        id: z.string().max(100),
+        changes: z
+          .array(z.object({ field: z.string().max(80), value: z.record(z.unknown()) }))
+          .max(100),
+      }),
+    )
+    .max(100),
+});
 
 export function registerWhatsApp(app, db, { project, range, key, transport = fetch }) {
   const connection = (id, projectId) => {
@@ -72,6 +90,16 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
     if (!p) throw fail('Escolha um pixel ativo desta operação.');
     return p;
   };
+  const testReceived = (c) =>
+    Boolean(
+      c.api_checked_at &&
+      c.subscribed_at &&
+      db
+        .prepare(
+          'SELECT 1 FROM wa_connection_tests WHERE connection_id=? AND received_at>=? AND received_at>=?',
+        )
+        .get(c.id, c.api_checked_at, c.subscribed_at),
+    );
   const emit = (c, conversation, eventName, eventId, at) => {
     const p =
       c.pixel_id && db.prepare('SELECT * FROM pixels WHERE id=? AND active=1').get(c.pixel_id);
@@ -105,6 +133,7 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
       saveSignals(db, { event_id: eventId }, 'whatsapp');
     }
   };
+  registerWhatsAppOnboarding(app, db, { project, pixelFor, connection, key, transport });
   app.get('/api/whatsapp', (req, res) => {
     const p = project(req.query.project),
       dates = range(req.query);
@@ -166,6 +195,8 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
     const c = connection(req.params.id, project(req.query.project).id);
     res.json({
       ...safe(c),
+      onboarding: whatsAppOnboardingDetails(db, c.id),
+      test_received: testReceived(c),
       webhook_url: `${process.env.PUBLIC_URL || req.protocol + '://' + req.get('host')}/api/whatsapp/webhook/${c.id}`,
       verify_token: decrypt(c.verify_cipher, key),
       receipts: db
@@ -190,10 +221,15 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
     if (v.pixel_id) pixelFor(v.pixel_id, c.project_id);
     if (
       v.test_mode === false &&
-      (!c.verified_at || !c.api_checked_at || !c.subscribed_at || v.app_secret || v.access_token)
+      (!c.verified_at ||
+        !c.api_checked_at ||
+        !c.subscribed_at ||
+        !testReceived(c) ||
+        v.app_secret ||
+        v.access_token)
     )
       throw fail(
-        'Valide o acesso, conecte as entregas e confirme a URL do webhook antes de ativar a coleta real.',
+        'Valide o acesso, conecte as entregas, confirme a URL do webhook e receba uma mensagem válida em modo teste antes de ativar a coleta real.',
       );
     db.prepare(
       'UPDATE wa_connections SET active=?,test_mode=?,pixel_id=?,secret_cipher=?,token_cipher=?,verified_at=?,api_checked_at=?,subscribed_at=? WHERE id=?',
@@ -208,6 +244,8 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
       v.app_secret || v.access_token ? null : c.subscribed_at,
       c.id,
     );
+    if (v.app_secret || v.access_token)
+      db.prepare('DELETE FROM wa_connection_tests WHERE connection_id=?').run(c.id);
     res.json({ ok: true });
   });
   app.post('/api/whatsapp/connections/:id/check', async (req, res) => {
@@ -263,6 +301,7 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
       new Date().toISOString(),
       c.id,
     );
+    db.prepare('DELETE FROM wa_connection_tests WHERE connection_id=?').run(c.id);
     res.json({
       ok: true,
       display_phone_number: phone.display_phone_number || '',
@@ -327,7 +366,60 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
       new Date().toISOString(),
       c.id,
     );
+    db.prepare('DELETE FROM wa_connection_tests WHERE connection_id=?').run(c.id);
     res.json({ ok: true });
+  });
+  app.get('/api/whatsapp/webhook/app', (req, res) => {
+    const config = whatsAppOnboardingConfiguration(key);
+    if (
+      !config.configured ||
+      req.query['hub.mode'] !== 'subscribe' ||
+      typeof req.query['hub.verify_token'] !== 'string' ||
+      typeof req.query['hub.challenge'] !== 'string' ||
+      req.query['hub.challenge'].length > 2000 ||
+      !timingSafeEqual(
+        Buffer.from(hash(req.query['hub.verify_token'])),
+        Buffer.from(hash(config.verify_token)),
+      )
+    )
+      return res.status(403).json({ error: 'Verificação recusada.' });
+    res.type('text/plain').send(req.query['hub.challenge']);
+  });
+  app.post('/api/whatsapp/webhook/app', (req, res) => {
+    const signature = String(req.headers['x-hub-signature-256'] || '');
+    if (
+      !process.env.META_APP_SECRET ||
+      !req.rawBody ||
+      !/^sha256=[a-f0-9]{64}$/.test(signature) ||
+      !timingSafeEqual(
+        Buffer.from(signature.slice(7), 'hex'),
+        createHmac('sha256', process.env.META_APP_SECRET).update(req.rawBody).digest(),
+      )
+    )
+      return res.status(401).json({ error: 'Assinatura WhatsApp inválida.' });
+    const body = webhookSchema.parse(req.body),
+      connections = new Map();
+    let ignored = 0;
+    for (const entry of body.entry)
+      for (const change of entry.changes) {
+        const phone = change.value.metadata?.phone_number_id;
+        const c =
+          typeof phone === 'string' &&
+          db
+            .prepare(
+              'SELECT c.* FROM wa_connections c JOIN wa_onboarding_connections o ON o.connection_id=c.id WHERE c.active=1 AND c.waba_id=? AND c.phone_number_id=?',
+            )
+            .get(entry.id, phone);
+        if (c) connections.set(c.id, c);
+        else ignored++;
+      }
+    let accepted = 0;
+    for (const c of connections.values()) {
+      const result = receive(req, c, true);
+      accepted += result.accepted;
+      ignored += result.ignored;
+    }
+    res.json({ ok: true, accepted, ignored });
   });
   app.get('/api/whatsapp/webhook/:id', (req, res) => {
     const c = db.prepare('SELECT * FROM wa_connections WHERE id=? AND active=1').get(req.params.id);
@@ -349,34 +441,19 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
     );
     res.type('text/plain').send(req.query['hub.challenge']);
   });
-  app.post('/api/whatsapp/webhook/:id', (req, res) => {
-    const c = db.prepare('SELECT * FROM wa_connections WHERE id=? AND active=1').get(req.params.id);
-    if (!c) return res.status(404).json({ error: 'Conexão inativa ou inexistente.' });
+  const receive = (req, c, verified = false) => {
     const signature = String(req.headers['x-hub-signature-256'] || '');
     if (
-      !req.rawBody ||
-      !/^sha256=[a-f0-9]{64}$/.test(signature) ||
-      !timingSafeEqual(
-        Buffer.from(signature.slice(7), 'hex'),
-        createHmac('sha256', decrypt(c.secret_cipher, key)).update(req.rawBody).digest(),
-      )
+      !verified &&
+      (!req.rawBody ||
+        !/^sha256=[a-f0-9]{64}$/.test(signature) ||
+        !timingSafeEqual(
+          Buffer.from(signature.slice(7), 'hex'),
+          createHmac('sha256', decrypt(c.secret_cipher, key)).update(req.rawBody).digest(),
+        ))
     )
-      return res.status(401).json({ error: 'Assinatura WhatsApp inválida.' });
-    const body = z
-      .object({
-        object: z.literal('whatsapp_business_account'),
-        entry: z
-          .array(
-            z.object({
-              id: z.string().max(100),
-              changes: z
-                .array(z.object({ field: z.string().max(80), value: z.record(z.unknown()) }))
-                .max(100),
-            }),
-          )
-          .max(100),
-      })
-      .parse(req.body);
+      throw fail('Assinatura WhatsApp inválida.', 401);
+    const body = webhookSchema.parse(req.body);
     let accepted = 0,
       ignored = 0;
     const received = new Date().toISOString();
@@ -421,6 +498,10 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
               continue;
             }
             if (c.test_mode) {
+              if (inbound)
+                db.prepare(
+                  'INSERT INTO wa_connection_tests(connection_id,received_at) VALUES(?,?) ON CONFLICT(connection_id) DO UPDATE SET received_at=excluded.received_at',
+                ).run(c.id, received);
               accepted++;
               continue;
             }
@@ -536,7 +617,16 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
               ((origin.ad_reference &&
                 conv.ad_reference &&
                 origin.ad_reference !== conv.ad_reference) ||
-                (ref && origin.visitor_id !== conv.visitor_id))
+                (origin.ctwa_clid && conv.ctwa_clid && origin.ctwa_clid !== conv.ctwa_clid) ||
+                (ref &&
+                  [
+                    'visitor_id',
+                    'utm_source',
+                    'utm_campaign',
+                    'utm_medium',
+                    'utm_content',
+                    'utm_term',
+                  ].some((field) => origin[field] !== conv[field])))
             )
               conv = null;
             if (!conv) {
@@ -609,6 +699,11 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
                   'wa_start_' + conv.id,
                 );
               }
+              if (origin.ctwa_clid && !conv.ctwa_clid && origin.ad_reference === conv.ad_reference)
+                db.prepare('UPDATE wa_conversations SET ctwa_clid=? WHERE id=?').run(
+                  origin.ctwa_clid,
+                  conv.id,
+                );
             }
             db.prepare('INSERT INTO wa_messages VALUES(?,?,?,?,?,?)').run(
               mid,
@@ -639,7 +734,12 @@ export function registerWhatsApp(app, db, { project, range, key, transport = fet
       db.exec('ROLLBACK');
       throw e;
     }
-    res.json({ ok: true, test_mode: Boolean(c.test_mode), accepted, ignored });
+    return { ok: true, test_mode: Boolean(c.test_mode), accepted, ignored };
+  };
+  app.post('/api/whatsapp/webhook/:id', (req, res) => {
+    const c = db.prepare('SELECT * FROM wa_connections WHERE id=? AND active=1').get(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Conexão inativa ou inexistente.' });
+    res.json(receive(req, c));
   });
   app.get('/api/whatsapp/contacts/:id', (req, res) => {
     const p = project(req.query.project);

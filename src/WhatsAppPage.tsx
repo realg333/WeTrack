@@ -15,6 +15,7 @@ import {
 import { api, brl, dateTime, decimal, downloadCsv, mutate, number, sourceName } from './lib';
 import { Badge, Empty, Modal, Pagination, SearchBox, Spinner, Toggle } from './components';
 import type { Dashboard, Toast } from './types';
+import WhatsAppSignup, { type WhatsAppSignupConfig } from './WhatsAppSignup';
 
 type Stage = 'new' | 'qualified' | 'negotiating' | 'lost';
 const stages: Record<Stage, string> = {
@@ -81,7 +82,15 @@ type Report = {
 type Setup = Connection & {
   webhook_url: string;
   verify_token: string;
+  test_received: boolean;
   receipts: { received_at: string; test_mode: number; accepted: number; ignored: number }[];
+  onboarding?: {
+    created_at: string;
+    contacts_sync_requested_at: string | null;
+    history_sync_requested_at: string | null;
+    contacts_sync_error: string | null;
+    history_sync_error: string | null;
+  } | null;
 };
 type Order = {
   currency: 'BRL' | 'USD';
@@ -139,6 +148,21 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
     [orders, setOrders] = useState<Order[]>([]);
   const [busy, setBusy] = useState(false),
     [formError, setFormError] = useState('');
+  const [signupConfig, setSignupConfig] = useState<WhatsAppSignupConfig | null>(null),
+    [signupOpen, setSignupOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api<WhatsAppSignupConfig>('/whatsapp/onboarding/config')
+      .then((config) => {
+        if (live) setSignupConfig(config);
+      })
+      .catch(() => {
+        if (live) setSignupConfig(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
   useEffect(() => {
     let current = true;
     setError('');
@@ -212,10 +236,10 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
     try {
       await action();
       notify(success);
-      reload();
     } catch (e) {
       notify((e as Error).message, true);
     } finally {
+      reload();
       setBusy(false);
     }
   };
@@ -544,17 +568,29 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
                 estiver habilitada na Meta.
               </p>
             </div>
-            <button
-              className="button primary"
-              disabled={!report.pixels.length}
-              onClick={() => {
-                setFormError('');
-                setModal('connect');
-              }}
-            >
-              <Plus size={16} />
-              Configurar API oficial
-            </button>
+            <div className="wa-connection-actions">
+              {signupConfig?.configured && (
+                <button
+                  className="button primary"
+                  disabled={!report.pixels.length}
+                  onClick={() => setSignupOpen(true)}
+                >
+                  <Link2 size={16} />
+                  Conectar com a Meta
+                </button>
+              )}
+              <button
+                className={`button ${signupConfig?.configured ? 'secondary' : 'primary'}`}
+                disabled={!report.pixels.length}
+                onClick={() => {
+                  setFormError('');
+                  setModal('connect');
+                }}
+              >
+                <Plus size={16} />
+                Configurar API oficial
+              </button>
+            </div>
           </section>
           {!report.pixels.length && (
             <p className="inline-notice">
@@ -562,6 +598,55 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
             </p>
           )}
           <section className="panel wa-instructions">
+            <h3>Conexão com a Meta</h3>
+            <p>
+              {signupConfig?.configured
+                ? 'Use “Conectar com a Meta” para autorizar sua empresa e escolher o número, sem copiar tokens. Ao concluir, abra a configuração da conexão para validar as entregas.'
+                : 'O login guiado depende da habilitação do aplicativo WeTrack na Meta. Enquanto essa etapa estiver pendente, conecte um número já habilitado pela configuração manual abaixo.'}
+            </p>
+            <p>
+              Para uso próprio, adicione WhatsApp ao aplicativo Meta compatível que você já possui.
+              Para conectar empresas clientes, habilite a WeTrack como Tech Provider, conclua a
+              verificação empresarial e solicite os acessos avançados de WhatsApp. A Meta determina
+              a elegibilidade de cada número para coexistência.{' '}
+              <a
+                href="https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Ver requisitos oficiais ↗
+              </a>
+            </p>
+            {signupConfig?.configured && signupConfig.webhook_url && (
+              <details>
+                <summary>Callback do aplicativo Meta</summary>
+                <p>
+                  Cadastre este callback padrão antes de conectar clientes e assine account_update,
+                  messages, smb_message_echoes, smb_app_state_sync e history.
+                </p>
+                <div className="wa-copy">
+                  <code>{signupConfig.webhook_url}</code>
+                  <button
+                    className="icon-button"
+                    aria-label="Copiar callback do aplicativo"
+                    onClick={() => void copy(signupConfig.webhook_url!)}
+                  >
+                    <Copy size={16} />
+                  </button>
+                </div>
+                <p>Token de verificação</p>
+                <div className="wa-copy">
+                  <code>{signupConfig.verify_token}</code>
+                  <button
+                    className="icon-button"
+                    aria-label="Copiar token do aplicativo"
+                    onClick={() => void copy(signupConfig.verify_token!)}
+                  >
+                    <Copy size={16} />
+                  </button>
+                </div>
+              </details>
+            )}
             <h3>Como ativar sem trocar seu atendimento</h3>
             <ol>
               <li>
@@ -584,8 +669,9 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
               </li>
             </ol>
             <p>
-              Esta configuração recebe eventos; ela não registra, migra ou desconecta seu número na
-              Meta. Não oferece leitura de WhatsApp pessoal, chatbot ou envio de mensagens.{' '}
+              A configuração manual recebe eventos de um número já habilitado. O login guiado
+              autoriza a conexão pela Meta. O painel não oferece leitura de WhatsApp pessoal,
+              chatbot ou envio de mensagens.{' '}
               <a
                 href="https://docs.360dialog.com/docs/resources/phone-numbers/coexistence"
                 target="_blank"
@@ -646,6 +732,21 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
             </section>
           ))}
         </>
+      )}
+      {signupOpen && signupConfig?.configured && (
+        <WhatsAppSignup
+          config={signupConfig}
+          project={project}
+          pixels={report.pixels}
+          onClose={() => setSignupOpen(false)}
+          onConnected={(id) => {
+            setSignupOpen(false);
+            setTab('connections');
+            setSetupId(id);
+            reload();
+            notify('Conexão criada em teste. Confira as entregas e a sincronização inicial.');
+          }}
+        />
       )}
       {modal && (
         <Modal
@@ -842,7 +943,66 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
                     ? 'URL verificada pela Meta'
                     : 'URL aguardando verificação da Meta'}
                 </span>
+                <span>
+                  {setup.test_received && <Check size={14} />}
+                  {setup.test_received
+                    ? 'Mensagem de teste recebida'
+                    : 'Mensagem de teste pendente'}
+                </span>
               </div>
+              {setup.onboarding && (
+                <section className="inline-notice">
+                  <div>
+                    <strong>Sincronização inicial do Business</strong>
+                    <p>
+                      A Meta exige solicitar a sincronização inicial em até 24 horas após a
+                      autorização. Confirme o compartilhamento no celular. O conteúdo e o histórico
+                      não são armazenados nem somados às métricas de novas conversas.
+                    </p>
+                    <p>
+                      Contatos:{' '}
+                      {setup.onboarding.contacts_sync_requested_at
+                        ? 'solicitação registrada'
+                        : 'pendente'}
+                      . Histórico:{' '}
+                      {setup.onboarding.history_sync_requested_at
+                        ? 'solicitação registrada'
+                        : 'pendente'}
+                      .
+                    </p>
+                    {(setup.onboarding.contacts_sync_error ||
+                      setup.onboarding.history_sync_error) && (
+                      <p role="alert">
+                        {setup.onboarding.contacts_sync_error ||
+                          setup.onboarding.history_sync_error}
+                      </p>
+                    )}
+                    <button
+                      className="button secondary"
+                      disabled={
+                        busy ||
+                        !setup.active ||
+                        !setup.subscribed_at ||
+                        Boolean(
+                          setup.onboarding.contacts_sync_requested_at &&
+                          setup.onboarding.history_sync_requested_at,
+                        )
+                      }
+                      onClick={() =>
+                        void run(
+                          () =>
+                            mutate(`/whatsapp/onboarding/${setup.id}/sync`, 'POST', {
+                              project_id: project,
+                            }),
+                          'Solicitações de sincronização registradas. Confirme o compartilhamento no celular.',
+                        )
+                      }
+                    >
+                      Solicitar sincronização inicial
+                    </button>
+                  </div>
+                </section>
+              )}
               <label className="check-label">
                 <input
                   type="checkbox"
@@ -852,6 +1012,7 @@ export default function WhatsAppPage({ data, notify }: { data: Dashboard; notify
                     !setup.active ||
                     !setup.api_checked_at ||
                     !setup.subscribed_at ||
+                    (Boolean(setup.test_mode) && !setup.test_received) ||
                     !setup.verified_at
                   }
                   onChange={(e) =>

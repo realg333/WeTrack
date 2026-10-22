@@ -13,6 +13,7 @@ import {
 import { dashboardReport } from '../server/reporting.mjs';
 import { createApp } from '../server/app.mjs';
 import Database from 'libsql';
+import { runRulesWorker } from '../scripts/run-rules-worker.mjs';
 
 function fixture(t, databaseOptions = {}) {
   const db = createDatabase(':memory:', { seedDemo: false, ...databaseOptions });
@@ -400,16 +401,47 @@ test('rule HTTP endpoints require sessions, isolate operations and protect the s
     else process.env.RULES_CRON_SECRET = previousSecret;
   });
   let schedulerInvoked = false;
-  app.locals.rules.runAll = async () => {
+  app.locals.rules.runScheduled = async ({ source }) => {
+    assert.equal(source, 'github-actions');
     schedulerInvoked = true;
-    return [];
+    return { ok: true, results: [] };
   };
   const diagnostic = await fetch(`${base}/internal/rules-run?check_only=1`, {
     headers: { Authorization: 'Bearer scheduler-test-secret' },
   });
   assert.equal(diagnostic.status, 200);
-  assert.deepEqual(await diagnostic.json(), { ok: true, check_only: true });
+  const diagnosticBody = await diagnostic.json();
+  assert.equal(diagnosticBody.ok, true);
+  assert.equal(diagnosticBody.check_only, true);
+  assert.equal(diagnosticBody.scheduler.state, 'never');
   assert.equal(schedulerInvoked, false, 'diagnostics cannot run or mutate campaigns');
+  assert.equal(
+    f.db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key='campaign-rules-scheduler-v1'").get()
+      .n,
+    0,
+    'diagnostics must not create a successful scheduler heartbeat',
+  );
+  const scheduled = await fetch(`${base}/internal/rules-run`, {
+    headers: {
+      Authorization: 'Bearer scheduler-test-secret',
+      'X-WeTrack-Scheduler': 'github-actions',
+    },
+  });
+  assert.equal(scheduled.status, 200);
+  assert.equal(schedulerInvoked, true);
+  app.locals.rules.runScheduled = async () => ({
+    ok: false,
+    results: [{ project_id: 'workspace', failures: 1 }],
+  });
+  assert.equal(
+    (
+      await fetch(`${base}/internal/rules-run`, {
+        headers: { Authorization: 'Bearer scheduler-test-secret' },
+      })
+    ).status,
+    502,
+    'HTTP schedulers must observe unsuccessful evaluations as failures',
+  );
   const login = await fetch(`${base}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -437,6 +469,7 @@ test('rule HTTP endpoints require sessions, isolate operations and protect the s
   );
   const report = await (await call('/rules?project=workspace')).json();
   assert.equal(report.rules[0].name, 'Editada');
+  assert.equal(report.scheduler.active_rules, 0);
   assert.equal((await call('/rules/preview', 'POST', f.rule())).status, 200);
   assert.equal((await call(`/rules/${id}?project=workspace`, 'DELETE')).status, 200);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM rule_configs').get().n, 0);
@@ -497,6 +530,78 @@ test('alert push preference is stored and campaign rules do not keep it', (t) =>
   assert.equal(read(alert.id).action, 'alert');
   assert.equal(read(pause.id).notify_push, false);
   assert.equal(read(pause.id).budget_change, null);
+});
+
+test('scheduler heartbeat distinguishes successful, failed and overdue cycles from panel activity', async (t) => {
+  const f = fixture(t);
+  f.service.save(f.rule());
+  assert.equal(f.service.schedulerStatus('workspace').state, 'never');
+  assert.equal(f.service.schedulerStatus('workspace').active_rules, 1);
+  assert.equal(f.service.schedulerStatus('foreign').active_rules, 0);
+  await f.service.run('workspace');
+  assert.equal(
+    f.service.schedulerStatus().state,
+    'never',
+    'panel activity cannot mask a stale cron',
+  );
+  f.advance(6);
+  let result = await f.service.runScheduled({ source: 'github-actions' });
+  assert.equal(result.ok, true);
+  let status = f.service.schedulerStatus();
+  assert.equal(status.state, 'healthy');
+  assert.equal(status.source, 'github-actions');
+  assert.equal(status.interval_minutes, 5);
+  assert.equal(status.stale_after_minutes, 15);
+  const successfulAt = status.last_success_at;
+  f.advance(6);
+  f.flags.syncError = true;
+  result = await f.service.runScheduled({ source: 'standalone' });
+  assert.equal(result.ok, false);
+  status = f.service.schedulerStatus();
+  assert.equal(status.state, 'error');
+  assert.equal(status.last_success_at, successfulAt);
+  assert.match(status.last_error, /falharam/);
+  f.advance(16);
+  assert.equal(f.service.schedulerStatus().state, 'stale');
+});
+
+test('standalone worker defaults to read-only diagnostics and uses the existing production database', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-19T15:00:00Z') });
+  const f = fixture(t);
+  f.service.save(f.rule());
+  const env = {
+    TURSO_DATABASE_URL: 'libsql://worker-fixture.invalid',
+    TURSO_AUTH_TOKEN: 'fixture-only',
+    SECRETS_KEY: 'aa'.repeat(32),
+    META_GRAPH_VERSION: 'v26.0',
+  };
+  const changes = f.db.prepare('SELECT total_changes() AS n').get().n;
+  const result = await runRulesWorker({ env, db: f.db });
+  assert.equal(result.ok, true);
+  assert.equal(result.check_only, true);
+  assert.equal(result.scheduler.state, 'never');
+  assert.equal(result.scheduler.active_rules, 1);
+  assert.equal(f.db.prepare('SELECT total_changes() AS n').get().n, changes);
+  assert.equal(f.writes.length, 0);
+  await assert.rejects(
+    runRulesWorker({ env: { ...env, SECRETS_KEY: '' }, db: f.db }),
+    /WETRACK_WORKER_SECRETS_KEY_MISSING/,
+  );
+  await assert.rejects(
+    runRulesWorker({ env: { ...env, TURSO_AUTH_TOKEN: '' }, db: f.db }),
+    /WETRACK_TURSO_ENV_MISSING/,
+  );
+  f.db.prepare("UPDATE rule_configs SET config=json_set(config,'$.action','alert')").run();
+  const execution = await runRulesWorker({ env, db: f.db, checkOnly: false });
+  assert.equal(execution.ok, true);
+  assert.equal(execution.scheduler.source, 'standalone');
+  assert.equal(execution.scheduler.state, 'healthy');
+  assert.equal(f.writes.length, 0, 'only mocked panel alerts are active in this worker test');
+  assert.equal(
+    f.db.prepare("SELECT COUNT(*) AS n FROM rule_runs WHERE action='alert'").get().n,
+    1,
+    'the standalone cycle evaluates the fixture and records its matching alert',
+  );
 });
 
 test('legacy BRL automation cannot pause a USD campaign', async (t) => {

@@ -44,6 +44,8 @@ export const cloudTables = [
   'webhook_receipts',
   'checkout_refs',
   'wa_connections',
+  'wa_onboarding_connections',
+  'wa_connection_tests',
   'wa_contacts',
   'wa_conversations',
   'wa_messages',

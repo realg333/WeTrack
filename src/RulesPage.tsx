@@ -89,6 +89,14 @@ type Payload = {
     last_attempt: string | null;
     last_error: string | null;
   } | null;
+  scheduler: {
+    state: 'never' | 'running' | 'healthy' | 'stale' | 'error';
+    interval_minutes: number;
+    last_finished_at: string | null;
+    last_success_at: string | null;
+    last_error: string | null;
+    source: 'github-actions' | 'external' | 'standalone' | null;
+  };
 };
 type Preview = {
   range: { start: string; end: string };
@@ -422,7 +430,7 @@ export default function RulesPage({
       <section className="panel rules-worker">
         <div>
           <strong>
-            <Clock3 size={16} /> Verificação automática a cada 5 minutos
+            <Clock3 size={16} /> Agendamento de verificações a cada 5 minutos
           </strong>
           <p>
             Funciona com o painel fechado. O agendador pode atrasar; o limite de gasto não é um teto
@@ -433,6 +441,41 @@ export default function RulesPage({
               ? `Última verificação: ${dateTime(data.worker.last_run)}`
               : 'Aguardando a primeira verificação de regras ativas.'}
           </small>
+          {data?.scheduler && (
+            <p
+              role={
+                ['stale', 'error', 'never'].includes(data.scheduler.state) ? 'status' : undefined
+              }
+            >
+              <Badge
+                tone={
+                  data.scheduler.state === 'healthy'
+                    ? 'green'
+                    : data.scheduler.state === 'running'
+                      ? 'blue'
+                      : 'amber'
+                }
+              >
+                {
+                  {
+                    healthy: 'Agendador em dia',
+                    running: 'Verificação em andamento',
+                    stale: 'Agendador atrasado',
+                    error: 'Falha no agendador',
+                    never: 'Agendador ainda não confirmado',
+                  }[data.scheduler.state]
+                }
+              </Badge>{' '}
+              {data.scheduler.last_finished_at
+                ? `Última execução externa: ${dateTime(data.scheduler.last_finished_at)}.`
+                : 'Nenhuma execução externa registrada nesta versão.'}{' '}
+              {data.scheduler.source === 'github-actions' &&
+                'GitHub Actions pode atrasar ou omitir execuções.'}
+              {data.scheduler.state === 'stale' &&
+                ' O agendador está há mais de 15 minutos sem concluir. Verifique o serviço de agendamento.'}
+              {data.scheduler.last_error && ` ${data.scheduler.last_error}`}
+            </p>
+          )}
         </div>
         <button
           className="button secondary"

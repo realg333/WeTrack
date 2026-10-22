@@ -192,12 +192,14 @@ export function createApp(db, options = {}) {
     const checkOnly = z.enum(['0', '1']).optional().parse(req.query.check_only);
     if (checkOnly === '1') {
       db.prepare('SELECT COUNT(*) AS count FROM rule_configs').get();
-      return res.json({ ok: true, check_only: true });
+      return res.json({ ok: true, check_only: true, scheduler: rules.schedulerStatus() });
     }
-    const results = await rules.runAll();
-    res
-      .status(results.some((r) => r.failures) ? 502 : 200)
-      .json({ ok: !results.some((r) => r.failures), results });
+    const source = z
+      .enum(['github-actions', 'external'])
+      .default('external')
+      .parse(req.get('X-WeTrack-Scheduler'));
+    const result = await rules.runScheduled({ source });
+    res.status(result.ok ? 200 : 502).json({ ...result, scheduler: rules.schedulerStatus() });
   });
   app.get('/api/session', (req, res) => {
     const sid = req.headers.cookie
@@ -815,6 +817,7 @@ export function createApp(db, options = {}) {
       ),
       campaigns: visibleCampaigns(db, p.id, currency),
       history: rules.history(p.id).filter((r) => (r.metrics.currency || 'BRL') === currency),
+      scheduler: rules.schedulerStatus(p.id),
       worker:
         db
           .prepare(

@@ -4,7 +4,21 @@ O painel **WhatsApp** acompanha contatos, conversas recebidas e pedidos do check
 
 ## Ativação
 
-1. Habilite o número pelo fluxo de coexistência da Meta ou de um provedor autorizado. O cadastro na WeTrack não faz esse onboarding e não habilita WhatsApp pessoal. Use um aplicativo Meta ao qual você tenha acesso de configuração.
+### Login guiado da Meta
+
+O botão **Conectar com a Meta** usa Embedded Signup para coexistência, com autorização no ambiente da Meta e troca do código no servidor. O cliente não precisa copiar token ou segredo do aplicativo. Configure `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION`, `PUBLIC_URL` HTTPS e `META_WHATSAPP_CONFIG_ID`. Este último é o ID de uma configuração **v4** de WhatsApp Cloud API e é separado de `META_LOGIN_CONFIG_ID`, usado para anúncios. Quando falta essa configuração, o painel informa a pendência e mantém o caminho manual disponível.
+
+O código publicado não substitui a habilitação e a revisão na Meta. O aplicativo atual pode ser aproveitado se aceitar os produtos necessários. Para conectar outras empresas, é preciso concluir o caminho de Tech Provider, verificação empresarial e acesso Advanced às permissões WhatsApp. Consulte o [guia Meta com checklist e fontes oficiais](whatsapp-meta.md).
+
+1. No aplicativo Meta, cadastre o callback padrão e o token exibidos em **Conexões → Callback do aplicativo Meta**. Assine `account_update`, `messages`, `smb_message_echoes`, `smb_app_state_sync` e `history`.
+2. Na WeTrack, clique **Conectar com a Meta**, escolha nome/pixel e prepare a conexão. Clique **Continuar com a Meta** e conclua o fluxo de coexistência usando o Business no celular. A Meta decide a elegibilidade.
+3. A WeTrack valida o aplicativo, o acesso à WABA, o número e a coexistência e cria a conexão em teste. Abra **Configuração e entregas**, valide o acesso e conecte as entregas.
+4. Solicite a sincronização inicial em até 24 horas e confirme o compartilhamento no celular. Cada tipo é solicitado uma vez por onboarding. Solicitação registrada não significa sincronização concluída. Conteúdo e histórico antigos não são armazenados nem entram nas métricas; os campos de sincronização são reconhecidos e descartados. Em entrega incerta, consulte a Meta antes de repetir o onboarding.
+5. Confirme uma mensagem de teste recebida e ative a coleta real. O fluxo não chama `/register` nem migra o número.
+
+### Configuração manual
+
+1. Habilite o número pelo fluxo de coexistência da Meta ou de um provedor autorizado. A configuração manual não faz esse onboarding e não habilita WhatsApp pessoal. Use um aplicativo Meta ao qual você tenha acesso de configuração.
 2. Configure `PUBLIC_URL` com HTTPS e `META_GRAPH_VERSION` com uma versão suportada pelo aplicativo. Cadastre um pixel ativo da operação.
 3. Em **WhatsApp → Conexões → Configurar API oficial**, informe WABA ID, Phone Number ID, token de acesso e segredo do aplicativo Meta. Token e segredo precisam pertencer ao aplicativo usado para receber as entregas. As credenciais são criptografadas com a chave do servidor.
 4. Abra **Configuração e entregas** e valide o acesso. O token deve ter acesso ao número e à conta, com permissões `whatsapp_business_management` e `whatsapp_business_messaging`.
@@ -12,7 +26,7 @@ O painel **WhatsApp** acompanha contatos, conversas recebidas e pedidos do check
 6. Clique em **Conectar entregas deste número**. A WeTrack inscreve o aplicativo na WABA e define o callback específico do número. Essa ação configura o recebimento de eventos; não registra, migra, desregistra ou envia mensagens pelo número.
 7. Envie uma mensagem de outro telefone e confira o histórico de entregas em teste. O teste armazena somente contagens. Depois de acesso, inscrição e URL confirmados, ative a coleta real e envie outra mensagem. Testes não são importados retroativamente.
 
-O painel não promete coexistência para toda conta nem faz login incorporado da Meta. A conexão depende do onboarding, dos acessos e das permissões disponíveis. Uma conexão existente pode ser desativada sem apagar o histórico; atualizar credenciais retorna ao modo de teste e exige nova validação e conexão das entregas.
+O painel não promete coexistência para toda conta. A conexão depende do onboarding, dos acessos e das permissões disponíveis. Uma conexão existente pode ser desativada sem apagar o histórico; atualizar credenciais retorna ao modo de teste e exige nova validação e conexão das entregas.
 
 ## Contatos, origem e etapas
 
