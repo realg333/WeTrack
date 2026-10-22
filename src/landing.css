@@ -265,6 +265,27 @@
   font-weight: 500;
   color: #bbc4cf;
 }
+.lp-pixel-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 17px;
+  padding: 7px 12px;
+  border: 1px solid #bbef7026;
+  border-radius: 6px;
+  background: #bbef7007;
+  color: #c5d6b8;
+  font-size: 11px;
+}
+.lp-pixel-score > svg,
+.lp-pixel-score strong {
+  color: var(--lp-green);
+}
+.lp-pixel-score strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: 16px;
+  margin-left: 3px;
+}
 .lp-hero-visual {
   position: relative;
   min-width: 0;

@@ -330,6 +330,12 @@ export default function Landing() {
                 <strong>R$ 29,90/mês</strong> ou R$ 19,90/mês no anual
               </span>
             </div>
+            <div className="lp-pixel-score">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <span>
+                Pixel com nota <strong>9,1</strong>
+              </span>
+            </div>
           </div>
           <div className="lp-hero-visual">
             <div className="lp-orbit" aria-hidden="true" />
@@ -469,7 +475,7 @@ export default function Landing() {
               <span className="lp-feature-icon">
                 <MousePointer2 size={21} />
               </span>
-              <h3>O caminho de cada venda.</h3>
+              <h3>Pixel com nota 9,1.</h3>
               <p>
                 Conecte o clique à conversão com pixel, UTMs e integrações. Descubra as origens que
                 trazem resultado.
