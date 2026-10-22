@@ -243,7 +243,7 @@ export default function Landing() {
   const [annual, setAnnual] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sales, setSales] = useState(1000);
-  const [fee, setFee] = useState('0.15');
+  const [fee, setFee] = useState('0.14');
   const checkout = caktoCheckout(annual ? checkoutUrls.annual : checkoutUrls.monthly);
   const extraFees = sales * Number(fee);
 
@@ -313,8 +313,8 @@ export default function Landing() {
               </svg>
             </h1>
             <p>
-              Do clique à venda, enxergue o que dá resultado. Dashboards ilimitados e{' '}
-              <strong>taxa zero por venda aprovada.</strong> Tudo em um único plano.
+              Do clique à venda, enxergue o que dá resultado. Dashboards e números de WhatsApp
+              ilimitados, com <strong>taxa zero por venda aprovada.</strong> Tudo em um único plano.
             </p>
             <div className="lp-hero-actions">
               <a className="lp-button" href="#plano">
@@ -588,12 +588,11 @@ export default function Landing() {
                 <span>30 mil vendas</span>
               </div>
               <label className="lp-fee-label" htmlFor="lp-fee">
-                Taxa de tracking por venda que você paga hoje
+                Taxa de tracking por venda aprovada que você paga hoje
                 <select id="lp-fee" value={fee} onChange={(e) => setFee(e.target.value)}>
-                  <option value="0.10">R$ 0,10</option>
-                  <option value="0.15">R$ 0,15</option>
-                  <option value="0.30">R$ 0,30</option>
-                  <option value="0.50">R$ 0,50</option>
+                  <option value="0.14">R$ 0,14</option>
+                  <option value="0.12">R$ 0,12</option>
+                  <option value="0.07">R$ 0,07</option>
                 </select>
               </label>
               <div className="lp-calculator-comparison">
@@ -713,6 +712,7 @@ export default function Landing() {
             <ul>
               {[
                 'Dashboards e workspaces ilimitados',
+                'Números de WhatsApp ilimitados',
                 'R$ 0 de taxa por venda aprovada',
                 'Campanhas, vendas e lucro no mesmo lugar',
                 'Pixel de rastreio e atribuição por UTMs',

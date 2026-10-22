@@ -25,6 +25,7 @@ test('public landing explains one plan, switches billing and links to the worksp
   await expect(page.getByRole('link', { name: 'Acessar painel' })).toHaveAttribute('href', '/app');
 
   const pricing = page.locator('#plano');
+  await expect(pricing.locator('li', { hasText: 'Números de WhatsApp ilimitados' })).toBeVisible();
   const billing = pricing.getByRole('group', { name: 'Período da assinatura' });
   await expect(billing.getByRole('button', { name: /^Anual/ })).toHaveAttribute(
     'aria-pressed',
@@ -73,7 +74,7 @@ test('calculator updates monthly and annual fees while WeTrack stays at zero', a
   const calculator = page.locator('.lp-calculator');
   const sales = calculator.getByRole('slider', { name: /Vendas aprovadas por mês/ });
   const fee = calculator.getByRole('combobox', {
-    name: 'Taxa de tracking por venda que você paga hoje',
+    name: 'Taxa de tracking por venda aprovada que você paga hoje',
   });
   const comparison = calculator.locator('.lp-calculator-comparison');
   const monthly = comparison.locator('div').first().locator('strong');
@@ -81,18 +82,29 @@ test('calculator updates monthly and annual fees while WeTrack stays at zero', a
   const annual = calculator.locator('.lp-calculator-result strong');
 
   await expect(sales).toHaveValue('1000');
-  await expect(fee).toHaveValue('0.15');
-  await expect(monthly).toHaveText('R$ 150,00');
-  await expect(annual).toContainText('R$ 1.800,00');
+  await expect(fee).toHaveValue('0.14');
+  await expect(fee.locator('option')).toHaveText([
+    'R$ 0,14',
+    'R$ 0,12',
+    'R$ 0,07',
+  ]);
+  await expect(monthly).toHaveText('R$ 140,00');
+  await expect(annual).toContainText('R$ 1.680,00');
   await expect(weTrack).toHaveText('R$ 0,00');
 
   await sales.focus();
   for (let step = 0; step < 90; step++) await page.keyboard.press('ArrowRight');
   await expect(sales).toHaveValue('10000');
-  await fee.selectOption('0.30');
-  await expect(monthly).toHaveText('R$ 3.000,00');
-  await expect(annual).toContainText('R$ 36.000,00');
-  await expect(weTrack).toHaveText('R$ 0,00');
+  for (const [rate, monthlyCost, annualCost] of [
+    ['0.14', 'R$ 1.400,00', 'R$ 16.800,00'],
+    ['0.12', 'R$ 1.200,00', 'R$ 14.400,00'],
+    ['0.07', 'R$ 700,00', 'R$ 8.400,00'],
+  ]) {
+    await fee.selectOption(rate);
+    await expect(monthly).toHaveText(monthlyCost);
+    await expect(annual).toContainText(annualCost);
+    await expect(weTrack).toHaveText('R$ 0,00');
+  }
 });
 
 for (const width of [390, 1440]) {
