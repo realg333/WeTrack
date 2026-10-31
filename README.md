@@ -35,6 +35,8 @@ O primeiro início cria **Operação principal**, com demonstração, e **Minha 
 
 ## Recursos
 
+- Seção **Webinar** com conexões do Webinar Meet, histórico privado por e-mail, tempo assistido, saídas/retornos, oferta, disparos e compras Hotmart. Em **Webinar > Criar conexão**, o token é exibido uma vez para configurar no servidor do webinar. A telemetria de compras dessa seção não duplica o faturamento do webhook financeiro.
+
 - Dashboard com faturamento aprovado, investimento, lucro sobre mídia, ROAS, CPA, ticket médio, visitantes, conversão e origens.
 - Filtros, gráficos diários, busca, paginação, detalhes e exportação CSV.
 - Campanhas locais, ativação local e registro de investimento diário. Orçamento não é contabilizado como gasto.

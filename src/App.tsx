@@ -64,6 +64,7 @@ import CampaignManager from './CampaignManager';
 import VisitorsPage from './VisitorsPage';
 import ConversionFunnel from './ConversionFunnel';
 import WhatsAppPage from './WhatsAppPage';
+import WebinarPage from './WebinarPage';
 import SaleAttribution from './SaleAttribution';
 import FeeSettings from './FeeSettings';
 import type { Dashboard, Page, Project, Sale } from './types';
@@ -74,6 +75,7 @@ const navigation = [
   { id: 'sales', label: 'Vendas', icon: ShoppingBag },
   { id: 'visits', label: 'Visitas e atribuição', icon: MousePointer2 },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { id: 'webinar', label: 'Webinar', icon: Activity },
   { id: 'rules', label: 'Regras e alertas', icon: Zap },
   { id: 'integrations', label: 'Integrações', icon: Link2 },
 ] as const;
@@ -83,6 +85,7 @@ const titles: Record<Page, string> = {
   sales: 'Vendas',
   visits: 'Visitas e atribuição',
   whatsapp: 'WhatsApp',
+  webinar: 'Webinar',
   rules: 'Regras e alertas',
   integrations: 'Integrações',
   notifications: 'Notificações',
@@ -94,6 +97,7 @@ const descriptions: Record<Page, string> = {
   sales: 'Cada venda tem uma história. Saiba de onde ela veio.',
   visits: 'Acompanhe o caminho entre o primeiro clique e a conversão.',
   whatsapp: 'Do primeiro contato à compra, mantendo seu atendimento no aplicativo.',
+  webinar: 'Acompanhe a aula, os disparos e as compras de cada participante.',
   rules: 'Seus indicadores certos, sempre no seu radar.',
   integrations: 'Conecte sua operação. A WeTrack cuida dos dados.',
   notifications: 'As novidades e os sinais da sua operação.',
@@ -879,6 +883,7 @@ export default function App() {
                 <VisitorsPage data={data} onConnect={() => navigate('integrations')} />
               )}
               {page === 'whatsapp' && <WhatsAppPage key={project} data={data} notify={notify} />}
+              {page === 'webinar' && <WebinarPage key={project} data={data} />}
               {page === 'rules' && (
                 <RulesPage
                   key={`${project}:${currency}`}

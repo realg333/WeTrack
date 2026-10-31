@@ -44,6 +44,7 @@ import { saveSaleCurrency } from './currencies.mjs';
 import { feeSchema, readFees } from './fees.mjs';
 import { rememberSaleIdentity } from './whatsapp-sales.mjs';
 import { registerWhatsApp } from './whatsapp.mjs';
+import { registerWebinar } from './webinar.mjs';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const id = (prefix) => `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -148,6 +149,7 @@ export function createApp(db, options = {}) {
     next();
   });
   registerTracking(app, db, { project, range, meta });
+  registerWebinar(app, db, { project, range });
   registerWhatsApp(app, db, {
     project,
     range,

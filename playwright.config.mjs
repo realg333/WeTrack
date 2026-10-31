@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+const apiPort = process.env.WETRACK_TEST_API_PORT || '3002';
 export default defineConfig({
   testDir: './tests/browser',
   workers: 1,
@@ -16,9 +17,9 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 30000,
     env: {
-      PORT: '3002',
+      PORT: apiPort,
       WEB_PORT: '5174',
-      API_PROXY_TARGET: 'http://127.0.0.1:3002',
+      API_PROXY_TARGET: `http://127.0.0.1:${apiPort}`,
       PUBLIC_URL: 'http://127.0.0.1:5174',
       DATABASE_PATH: `./data/e2e-${Date.now()}.sqlite`,
       ADMIN_PASSWORD: '',

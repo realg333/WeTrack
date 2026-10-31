@@ -4,6 +4,7 @@ export type Page =
   | 'sales'
   | 'visits'
   | 'whatsapp'
+  | 'webinar'
   | 'rules'
   | 'integrations'
   | 'notifications'
