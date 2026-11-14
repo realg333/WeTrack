@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import localization from './scripts/localization.mjs';
 export default defineConfig({
-  plugins: [react()],
+  plugins: [localization(), react()],
+  build: { target: 'es2022' },
   server: {
     port: Number(process.env.WEB_PORT || 5173),
     strictPort: true,

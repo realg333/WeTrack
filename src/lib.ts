@@ -1,9 +1,10 @@
+import { locale, t } from './i18n';
 export const brl = (value: number, currency = 'BRL') =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(value);
+  new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value);
 export const number = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(value);
+  new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
 export const decimal = (value: number, digits = 2) =>
-  value.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 export const localDay = (value = new Date()) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -12,7 +13,7 @@ export const localDay = (value = new Date()) =>
     day: '2-digit',
   }).format(value);
 export const dateTime = (value: string) =>
-  new Date(value).toLocaleString('pt-BR', {
+  new Date(value).toLocaleString(locale, {
     timeZone: 'America/Sao_Paulo',
     day: '2-digit',
     month: '2-digit',
@@ -40,7 +41,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     if (response.status === 401 && path !== '/login')
       window.dispatchEvent(new Event('wt:session-expired'));
-    throw new Error(data.error || 'Não foi possível concluir a ação.');
+    throw new Error(t(data.error) || 'Não foi possível concluir a ação.');
   }
   return data as T;
 }

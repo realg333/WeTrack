@@ -6683,3 +6683,62 @@ form > label > input {
     flex-direction: column;
   }
 }
+
+.language-picker {
+  position: fixed;
+  inset-block-end: 14px;
+  inset-inline-end: 14px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #aaa);
+  border-radius: 10px;
+  background: var(--surface, #172126);
+  color: var(--text, #fff);
+  box-shadow: 0 3px 15px #0003;
+  font-family: system-ui, sans-serif;
+}
+.language-picker select {
+  min-width: 100px;
+  max-width: 140px;
+  padding: 4px;
+  color: inherit;
+  background: inherit;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.language-picker option {
+  background: #172126;
+  color: #fff;
+}
+.language-picker:focus-within {
+  outline: 2px solid #39bda9;
+  outline-offset: 2px;
+}
+
+@media (min-width: 901px) {
+  html[dir='rtl'] .sidebar {
+    right: 0;
+    left: auto;
+    border-left: 1px solid var(--border-subtle);
+    border-right: 0;
+  }
+  html[dir='rtl'] .main-shell {
+    margin-left: 0;
+    margin-right: 224px;
+  }
+}
+html[dir='rtl'] .sidebar nav button {
+  text-align: right;
+}
+@media (max-width: 600px) {
+  .language-picker {
+    inset-block-end: 8px;
+    inset-inline-end: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { lazy, Suspense } from 'react';
 import Landing from './Landing';
+import LanguagePicker from './LanguagePicker';
 import './styles.css';
 
 const App = lazy(() => import('./App'));
@@ -24,6 +25,7 @@ const isDashboard = /^\/(app|login)\/?$/.test(window.location.pathname);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <LanguagePicker />
     {isDashboard ? (
       <Suspense
         fallback={
