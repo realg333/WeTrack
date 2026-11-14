@@ -41,7 +41,7 @@ test('language selection persists across navigation and Portuguese can be restor
 
 test('translated layouts fit desktop and mobile', async ({ page }) => {
   for (const lang of ['en', 'de', 'ar', 'zh-CN']) {
-    for (const width of [1440, 390]) {
+    for (const width of [1440, 850, 390]) {
       await page.setViewportSize({ width, height: 950 });
       await page.goto(`/?lang=${lang}`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

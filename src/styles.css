@@ -6719,7 +6719,7 @@ form > label > input {
   outline-offset: 2px;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 761px) {
   html[dir='rtl'] .sidebar {
     right: 0;
     left: auto;
@@ -6741,4 +6741,13 @@ html[dir='rtl'] .sidebar nav button {
     padding: 4px 8px;
     font-size: 12px;
   }
+}
+@media (min-width: 761px) and (max-width: 1000px) {
+  html[dir='rtl'] .main-shell {
+    margin-right: 188px;
+  }
+}
+.brand,
+.lp-brand {
+  direction: ltr;
 }
